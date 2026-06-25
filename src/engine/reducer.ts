@@ -157,10 +157,7 @@ const TERRAIN_NAMES: Record<string, 'electric' | 'grassy' | 'misty' | 'psychic'>
   'Psychic Terrain': 'psychic',
 };
 
-const WEATHER_NAMES: Record
-  string,
-  'sun' | 'rain' | 'sand' | 'snow' | 'harshsun' | 'heavyrain'
-> = {
+const WEATHER_NAMES: Record<string, 'sun' | 'rain' | 'sand' | 'snow' | 'harshsun' | 'heavyrain'> = {
   SunnyDay: 'sun',
   RainDance: 'rain',
   Sandstorm: 'sand',
