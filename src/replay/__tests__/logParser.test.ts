@@ -174,3 +174,43 @@ describe('parseReplayLog (full sample)', () => {
     expect(terrainLine?.tags.from).toBe('ability: Grassy Surge');
   });
 });
+describe('Mega Evolution support (-mega line)', () => {
+  it('marks the pokemon as mega-evolved and resolves the resulting forme', () => {
+    let battle = createInitialBattleState();
+    battle = {
+      ...battle,
+      pokemonByKey: {
+        'p1:Garchomp': createInitialPokemonState({ species: 'Garchomp', side: 'p1', level: 50 }),
+      },
+    };
+
+    const lines = parseReplayLog(`|gametype|doubles\n${SAMPLE_MEGA_EVOLUTION_LINES}`).turns.flat();
+    for (const line of lines) {
+      battle = applyLine(battle, line);
+    }
+
+    const garchomp = battle.pokemonByKey['p1:Garchomp'];
+    expect(garchomp.isMegaEvolved).toBe(true);
+    expect(garchomp.megaStone).toBe('Garchompite');
+    expect(garchomp.megaForme).toBe('Mega Garchomp');
+    expect(garchomp.revealedItem).toBe('Garchompite');
+  });
+
+  it('keeps the mega-evolved flag set even after the pokemon switches out', () => {
+    let battle = createInitialBattleState();
+    battle = {
+      ...battle,
+      pokemonByKey: {
+        'p1:Garchomp': createInitialPokemonState({ species: 'Garchomp', side: 'p1', level: 50 }),
+      },
+    };
+    const lines = parseReplayLog(
+      `|gametype|doubles\n${SAMPLE_MEGA_EVOLUTION_LINES}|switch|p1a: Incineroar|Incineroar, F|100/100\n`,
+    ).turns.flat();
+    for (const line of lines) {
+      battle = applyLine(battle, line);
+    }
+    // Garchomp a switch out (remplacé par Incineroar à p1a), mais reste mega pour le reste du match.
+    expect(battle.pokemonByKey['p1:Garchomp'].isMegaEvolved).toBe(true);
+  });
+});
