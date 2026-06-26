@@ -39,6 +39,7 @@ import {
   updateField,
   updateSide,
 } from './field';
+import { resolveMegaForme } from './megaStones';
 import {
   addVolatile,
   applyBoost,
@@ -54,6 +55,7 @@ import {
   revealMove,
   setBoost,
   setHp,
+  setMegaEvolved,
   setPosition,
   setTerastallized,
 } from './pokemon';
@@ -392,6 +394,16 @@ export function applyLine(battle: BattleState, line: TurnLine): BattleState {
       const resolved = resolvePokemonKey(battle, identRaw);
       if (!resolved || !abilityRaw) return battle;
       return updatePokemon(battle, resolved.key, (p) => revealAbility(p, abilityRaw));
+    }
+
+    case '-mega': {
+      const [identRaw, , megaStoneRaw] = line.args; // args[1]=baseSpecies (ignoré), args[2]=megastone
+      const resolved = resolvePokemonKey(battle, identRaw);
+      if (!resolved || !megaStoneRaw) return battle;
+      const megaForme = resolveMegaForme(megaStoneRaw);
+      return updatePokemon(battle, resolved.key, (p) =>
+        setMegaEvolved(p, megaStoneRaw, megaForme),
+      );
     }
 
     case '-terastallize': {
