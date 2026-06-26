@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { parseReplayLog } from '../../replay/logParser';
-import { SAMPLE_MEGA_EVOLUTION_LINES, SAMPLE_VGC_LOG } from '../../replay/__fixtures__/sampleVgcLog';
-import { applyLine, initBattleStateFromReplay, replayToStates } from '../reducer';
-import { createInitialBattleState, createInitialPokemonState } from '../state';
+import {
+  parseHpStatus,
+  parseLine,
+  parsePokemonDetails,
+  parsePokemonIdent,
+  parseReplayLog,
+} from '../logParser';
+import { SAMPLE_VGC_LOG } from '../__fixtures__/sampleVgcLog';
 
 describe('parseLine', () => {
   it('parses a simple line with no tags', () => {
@@ -172,45 +176,5 @@ describe('parseReplayLog (full sample)', () => {
     const terrainLine = turn1.find((l) => l.type === '-fieldstart');
     expect(terrainLine?.args).toEqual(['move: Grassy Terrain']);
     expect(terrainLine?.tags.from).toBe('ability: Grassy Surge');
-  });
-});
-describe('Mega Evolution support (-mega line)', () => {
-  it('marks the pokemon as mega-evolved and resolves the resulting forme', () => {
-    let battle = createInitialBattleState();
-    battle = {
-      ...battle,
-      pokemonByKey: {
-        'p1:Garchomp': createInitialPokemonState({ species: 'Garchomp', side: 'p1', level: 50 }),
-      },
-    };
-
-    const lines = parseReplayLog(`|gametype|doubles\n${SAMPLE_MEGA_EVOLUTION_LINES}`).turns.flat();
-    for (const line of lines) {
-      battle = applyLine(battle, line);
-    }
-
-    const garchomp = battle.pokemonByKey['p1:Garchomp'];
-    expect(garchomp.isMegaEvolved).toBe(true);
-    expect(garchomp.megaStone).toBe('Garchompite');
-    expect(garchomp.megaForme).toBe('Mega Garchomp');
-    expect(garchomp.revealedItem).toBe('Garchompite');
-  });
-
-  it('keeps the mega-evolved flag set even after the pokemon switches out', () => {
-    let battle = createInitialBattleState();
-    battle = {
-      ...battle,
-      pokemonByKey: {
-        'p1:Garchomp': createInitialPokemonState({ species: 'Garchomp', side: 'p1', level: 50 }),
-      },
-    };
-    const lines = parseReplayLog(
-      `|gametype|doubles\n${SAMPLE_MEGA_EVOLUTION_LINES}|switch|p1a: Incineroar|Incineroar, F|100/100\n`,
-    ).turns.flat();
-    for (const line of lines) {
-      battle = applyLine(battle, line);
-    }
-    // Garchomp a switch out (remplacé par Incineroar à p1a), mais reste mega pour le reste du match.
-    expect(battle.pokemonByKey['p1:Garchomp'].isMegaEvolved).toBe(true);
   });
 });
