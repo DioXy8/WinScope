@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import {
-  parseHpStatus,
-  parseLine,
-  parsePokemonDetails,
-  parsePokemonIdent,
-  parseReplayLog,
-} from '../logParser';
-import { SAMPLE_VGC_LOG } from '../__fixtures__/sampleVgcLog';
+import { parseReplayLog } from '../../replay/logParser';
+import { SAMPLE_MEGA_EVOLUTION_LINES, SAMPLE_VGC_LOG } from '../../replay/__fixtures__/sampleVgcLog';
+import { applyLine, initBattleStateFromReplay, replayToStates } from '../reducer';
+import { createInitialBattleState, createInitialPokemonState } from '../state';
 
 describe('parseLine', () => {
   it('parses a simple line with no tags', () => {
