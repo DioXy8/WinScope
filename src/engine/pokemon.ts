@@ -133,6 +133,22 @@ export function setTerastallized(pokemon: PokemonState, teraType: string): Pokem
   };
 }
 
+export function setMegaEvolved(
+  pokemon: PokemonState,
+  megaStone: string,
+  megaForme: string | null,
+): PokemonState {
+  return {
+    ...pokemon,
+    isMegaEvolved: true,
+    megaStone,
+    megaForme,
+    // La Mega Stone est par définition révélée au moment de la Mega Evolution.
+    revealedItem: pokemon.revealedItem ?? megaStone,
+    knownSet: { ...pokemon.knownSet, item: pokemon.knownSet.item ?? megaStone },
+  };
+}
+
 /** Place ce Pokémon à une position donnée du terrain (switch-in). */
 export function setPosition(
   pokemon: PokemonState,
@@ -145,6 +161,8 @@ export function setPosition(
  * Réinitialise tout ce qui doit disparaître quand un Pokémon quitte le
  * terrain (switch out ou faint) : boosts, volatiles. Les infos révélées
  * (moves, item, ability) restent en mémoire, car connues définitivement.
+ * Mega Evolution et Tera ne sont PAS réinitialisés ici : ce sont des
+ * transformations permanentes pour le reste du combat.
  */
 export function resetOnSwitchOut(pokemon: PokemonState): PokemonState {
   return {
