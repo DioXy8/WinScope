@@ -129,3 +129,128 @@ export function createInitialPokemonState(params: {
     isMegaEvolved: false,
     megaStone: null,
     megaForme: null,
+    fainted: false,
+    knownSet: createEmptyPartialSet(),
+    userProvidedSet: null,
+  };
+}
+
+/** Hazards et conditions actives du côté d'un joueur (pas liées à un Pokémon précis). */
+export interface SideState {
+  /** Nombre de couches de Spikes posées (0-3). */
+  spikes: number;
+  /** Toxic Spikes posées (0-2). */
+  toxicSpikes: boolean;
+  /** Stealth Rock posé. */
+  stealthRock: boolean;
+  /** Sticky Web posé. */
+  stickyWeb: boolean;
+
+  isReflect: boolean;
+  reflectTurnsLeft: number;
+  isLightScreen: boolean;
+  lightScreenTurnsLeft: number;
+  isAuroraVeil: boolean;
+  auroraVeilTurnsLeft: number;
+
+  isTailwind: boolean;
+  tailwindTurnsLeft: number;
+
+  /** Pokémon de ce côté ayant déjà fait Tera ce match (règle: un seul par équipe). */
+  hasUsedTerastallize: boolean;
+}
+
+export function createInitialSideState(): SideState {
+  return {
+    spikes: 0,
+    toxicSpikes: false,
+    stealthRock: false,
+    stickyWeb: false,
+    isReflect: false,
+    reflectTurnsLeft: 0,
+    isLightScreen: false,
+    lightScreenTurnsLeft: 0,
+    isAuroraVeil: false,
+    auroraVeilTurnsLeft: 0,
+    isTailwind: false,
+    tailwindTurnsLeft: 0,
+    hasUsedTerastallize: false,
+  };
+}
+
+export type WeatherCondition =
+  | null
+  | 'sun'
+  | 'rain'
+  | 'sand'
+  | 'snow'
+  | 'harshsun'
+  | 'heavyrain';
+
+export type TerrainCondition = null | 'electric' | 'grassy' | 'misty' | 'psychic';
+
+/** Conditions de terrain globales, communes aux deux joueurs. */
+export interface FieldState {
+  weather: WeatherCondition;
+  weatherTurnsLeft: number;
+  terrain: TerrainCondition;
+  terrainTurnsLeft: number;
+  isTrickRoom: boolean;
+  trickRoomTurnsLeft: number;
+  isGravity: boolean;
+  gravityTurnsLeft: number;
+}
+
+export function createInitialFieldState(): FieldState {
+  return {
+    weather: null,
+    weatherTurnsLeft: 0,
+    terrain: null,
+    terrainTurnsLeft: 0,
+    isTrickRoom: false,
+    trickRoomTurnsLeft: 0,
+    isGravity: false,
+    gravityTurnsLeft: 0,
+  };
+}
+
+/**
+ * État complet et immuable du combat à un instant T (typiquement : juste
+ * avant ou juste après un tour donné). Chaque ligne du replay appliquée par
+ * le reducer produit un NOUVEL objet BattleState plutôt que de muter
+ * l'existant, ce qui permet de conserver tout l'historique pour l'UI
+ * (scrubber façon chess.com).
+ */
+export interface BattleState {
+  turnNumber: number;
+
+  field: FieldState;
+  sides: {
+    p1: SideState;
+    p2: SideState;
+  };
+
+  /**
+   * Toutes les Pokémon connues, actives ou non, indexées par une clé stable
+   * (pas la position, qui change si le Pokémon switch) : on utilise
+   * `${side}:${species}` tant que Species Clause est en vigueur (règle VGC
+   * standard, un seul exemplaire de chaque espèce par équipe).
+   */
+  pokemonByKey: Record<string, PokemonState>;
+
+  /** Position -> clé du Pokémon actif à cette position, pour résolution rapide. */
+  activeByPosition: Partial<Record<PokemonPosition, string>>;
+}
+
+export function createInitialBattleState(): BattleState {
+  return {
+    turnNumber: 0,
+    field: createInitialFieldState(),
+    sides: {
+      p1: createInitialSideState(),
+      p2: createInitialSideState(),
+    },
+    pokemonByKey: {},
+    activeByPosition: {},
+  };
+}
