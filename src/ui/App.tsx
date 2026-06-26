@@ -12,9 +12,7 @@ type LoadState =
   | { status: 'success'; states: BattleState[]; p1Name: string; p2Name: string };
 
 export default function App() {
-  const [url, setUrl] = useState(
-    'https://replay.pokemonshowdown.com/gen9vgc2025reghbo3-2415622799',
-  );
+  //const [url, setUrl] = useState('https://replay.pokemonshowdown.com/gen9vgc2025reghbo3-2415622799',);
   const [state, setState] = useState<LoadState>({ status: 'idle' });
   const [turnIndex, setTurnIndex] = useState(0);
 
