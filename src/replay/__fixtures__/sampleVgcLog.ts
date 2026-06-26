@@ -58,4 +58,12 @@ export const SAMPLE_VGC_LOG = `|j|☆Alice
 |-heal|p1a: Incineroar|60/100|[from] item: Leftovers
 |turn|3
 |win|Alice
+/**
+ * Petit complément de log isolé, juste pour tester la Mega Evolution
+ * (mécanique propre à Pokémon Champions, absente du sample principal).
+ */
+export const SAMPLE_MEGA_EVOLUTION_LINES = `|switch|p1a: Garchomp|Garchomp, M|100/100
+|-mega|p1a: Garchomp|Garchomp|Garchompite
+|move|p1a: Garchomp|Earthquake|p2a: Urshifu
+`;
 `;
