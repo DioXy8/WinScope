@@ -1,3 +1,15 @@
+/**
+ * replay/__fixtures__/sampleVgcLog.ts
+ *
+ * Log d'exemple, écrit à la main en suivant scrupuleusement la grammaire
+ * officielle de sim/SIM-PROTOCOL.md (smogon/pokemon-showdown), pour servir
+ * de fixture de test au parser et au battle engine avant qu'on ait besoin
+ * de dépendre d'un fetch réseau réel.
+ *
+ * Scénario : VGC doubles, 2 tours, avec switch, move, dégâts, boost,
+ * statut, météo, et un KO.
+ */
+
 export const SAMPLE_VGC_LOG = `|j|☆Alice
 |j|☆Bob
 |player|p1|Alice|266|1500
@@ -58,6 +70,8 @@ export const SAMPLE_VGC_LOG = `|j|☆Alice
 |-heal|p1a: Incineroar|60/100|[from] item: Leftovers
 |turn|3
 |win|Alice
+`;
+
 /**
  * Petit complément de log isolé, juste pour tester la Mega Evolution
  * (mécanique propre à Pokémon Champions, absente du sample principal).
@@ -65,5 +79,4 @@ export const SAMPLE_VGC_LOG = `|j|☆Alice
 export const SAMPLE_MEGA_EVOLUTION_LINES = `|switch|p1a: Garchomp|Garchomp, M|100/100
 |-mega|p1a: Garchomp|Garchomp|Garchompite
 |move|p1a: Garchomp|Earthquake|p2a: Urshifu
-`;
 `;
