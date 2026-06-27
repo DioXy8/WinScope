@@ -94,6 +94,14 @@ export interface PokemonState {
 
   fainted: boolean;
 
+  /**
+   * true si ce Pokémon vient d'entrer sur le terrain PENDANT le tour
+   * actuellement affiché (switch-in ou drag). Remis à false au début de
+   * chaque nouveau tour. Sert uniquement à l'affichage UI (mettre en
+   * évidence les entrées récentes), aucune logique de jeu n'en dépend.
+   */
+  switchedInThisTurn: boolean;
+
   /** Ce qu'on sait/déduit automatiquement depuis le log (item, moves, ability si déclenchée). */
   knownSet: PartialPokemonSet;
   /** Complété manuellement par l'utilisateur pour ce qui n'est jamais révélé (EVs, nature...). */
@@ -130,6 +138,7 @@ export function createInitialPokemonState(params: {
     megaStone: null,
     megaForme: null,
     fainted: false,
+    switchedInThisTurn: false,
     knownSet: createEmptyPartialSet(),
     userProvidedSet: null,
   };
