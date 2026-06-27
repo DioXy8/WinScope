@@ -388,3 +388,95 @@ body {
   color: #aab;
   margin-top: 4px;
 }
+
+.matchups-panel {
+  background: #161922;
+  border: 1px solid #2a2e3a;
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+
+.matchups-panel h3 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 0.95rem;
+  color: #ffd93d;
+}
+
+.matchups-empty {
+  color: #777;
+  font-size: 0.85rem;
+  font-style: italic;
+  text-align: center;
+}
+
+.matchups-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.matchup-card {
+  background: #1a1d28;
+  border: 1px solid #2a2e3a;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.matchup-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.matchup-attacker {
+  font-weight: 600;
+  color: #6ec6ff;
+}
+
+.matchup-move {
+  color: #ccc;
+  font-style: italic;
+}
+
+.matchup-arrow {
+  color: #666;
+}
+
+.matchup-defender {
+  font-weight: 600;
+  color: #ff9b6b;
+}
+
+.matchup-bar-track {
+  height: 6px;
+  border-radius: 3px;
+  background: #2a2e3a;
+  overflow: hidden;
+}
+
+.matchup-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ffd93d, #ff6b6b);
+  transition: width 0.3s ease;
+}
+
+.matchup-percent {
+  font-size: 0.72rem;
+  color: #aaa;
+  margin-top: 4px;
+}
+
+.matchup-ko-tag {
+  color: #ff6b6b;
+  font-weight: 700;
+}
+
+.matchups-unsupported-note {
+  margin-top: 12px;
+  font-size: 0.7rem;
+  color: #777;
+}
