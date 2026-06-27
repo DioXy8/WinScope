@@ -4,6 +4,8 @@ import { parseReplayLog } from '../replay/logParser';
 import { replayToStates } from '../engine/reducer';
 import type { BattleState, PokemonState } from '../engine/state';
 import { estimateWinProbability } from '../search/evaluator';
+import { calculateDamage, DexLookupError } from '../damagecalc/damageCalc';
+import type { DamageCalcResult } from '../damagecalc/damageCalc';
 
 type LoadState =
   | { status: 'idle' }
@@ -12,11 +14,15 @@ type LoadState =
   | { status: 'success'; states: BattleState[]; p1Name: string; p2Name: string };
 
 export default function App() {
-  const [url, setUrl] = useState('https://replay.pokemonshowdown.com/gen9vgc2025reghbo3-2415622799',);
+  const [url, setUrl] = useState('');
   const [state, setState] = useState<LoadState>({ status: 'idle' });
   const [turnIndex, setTurnIndex] = useState(0);
 
   async function handleAnalyze() {
+    if (!url.trim()) {
+      setState({ status: 'error', message: 'Colle une URL de replay Showdown avant de lancer l’analyse.' });
+      return;
+    }
     setState({ status: 'loading' });
     try {
       const raw = await fetchReplay(url);
@@ -136,6 +142,8 @@ function BattleExplorer({
       <WinHistory probabilities={winProbabilities} currentIndex={turnIndex} onSelect={onTurnChange} />
 
       <FieldSummary battle={current} />
+
+      <MatchupsPanel battle={current} />
 
       <div className="sides-grid">
         <SideColumn label={p1Name} active={p1Active} bench={p1Bench} sideState={current.sides.p1} />
@@ -333,10 +341,17 @@ function PokemonCard({ pokemon, compact }: { pokemon: PokemonState; compact?: bo
   if (pokemon.isTerastallized) formeLabel += ` (Tera ${pokemon.teraType ?? '?'})`;
 
   return (
-    <div className={`pokemon-card ${pokemon.fainted ? 'fainted' : ''} ${compact ? 'compact' : ''}`}>
+    <div
+      className={`pokemon-card ${pokemon.fainted ? 'fainted' : ''} ${compact ? 'compact' : ''} ${
+        pokemon.switchedInThisTurn ? 'just-switched-in' : ''
+      }`}
+    >
       <div className="pokemon-card-header">
         <span className="pokemon-name">{formeLabel}</span>
-        {pokemon.status && <span className={`status-badge status-${pokemon.status}`}>{pokemon.status}</span>}
+        <div className="header-badges">
+          {pokemon.switchedInThisTurn && <span className="switch-badge">↩ entrée</span>}
+          {pokemon.status && <span className={`status-badge status-${pokemon.status}`}>{pokemon.status}</span>}
+        </div>
       </div>
       <div className="hp-bar-track">
         <div className={`hp-bar-fill ${hpColorClass}`} style={{ width: `${hpPercent}%` }} />
@@ -364,6 +379,111 @@ function PokemonCard({ pokemon, compact }: { pokemon: PokemonState; compact?: bo
         </div>
       )}
       {!compact && pokemon.revealedAbility && <div className="ability-row">✨ {pokemon.revealedAbility}</div>}
+    </div>
+  );
+}
+
+type MatchupEntry =
+  | {
+      status: 'ok';
+      attackerLabel: string;
+      defenderLabel: string;
+      moveName: string;
+      result: DamageCalcResult;
+    }
+  | {
+      status: 'unsupported';
+      attackerLabel: string;
+      defenderLabel: string;
+      moveName: string;
+      message: string;
+    };
+
+function computeMatchups(battle: BattleState): MatchupEntry[] {
+  const p1Active = getActivePokemon(battle, 'p1');
+  const p2Active = getActivePokemon(battle, 'p2');
+  const entries: MatchupEntry[] = [];
+
+  const pairs: [PokemonState[], PokemonState[], 'p1' | 'p2'][] = [
+    [p1Active, p2Active, 'p1'],
+    [p2Active, p1Active, 'p2'],
+  ];
+
+  for (const [attackers, defenders, attackerSide] of pairs) {
+    for (const attacker of attackers) {
+      if (attacker.fainted || attacker.revealedMoves.length === 0) continue;
+      for (const defender of defenders) {
+        if (defender.fainted) continue;
+        for (const moveName of attacker.revealedMoves) {
+          const attackerLabel = attacker.nickname || attacker.species;
+          const defenderLabel = defender.nickname || defender.species;
+          try {
+            const result = calculateDamage(attacker, defender, moveName, battle, attackerSide);
+            entries.push({ status: 'ok', attackerLabel, defenderLabel, moveName, result });
+          } catch (err) {
+            const message =
+              err instanceof DexLookupError
+                ? `"${err.name}" hors dex Champions`
+                : `Erreur de calcul (${(err as Error).message})`;
+            entries.push({ status: 'unsupported', attackerLabel, defenderLabel, moveName, message });
+          }
+        }
+      }
+    }
+  }
+
+  return entries;
+}
+
+function MatchupsPanel({ battle }: { battle: BattleState }) {
+  const matchups = useMemo(() => computeMatchups(battle), [battle]);
+
+  const okMatchups = matchups.filter((m): m is MatchupEntry & { status: 'ok' } => m.status === 'ok');
+  const unsupported = matchups.filter(
+    (m): m is MatchupEntry & { status: 'unsupported' } => m.status === 'unsupported',
+  );
+  const uniqueUnsupportedNames = Array.from(
+    new Set(unsupported.map((m) => m.message)),
+  );
+
+  if (matchups.length === 0) {
+    return (
+      <div className="matchups-panel matchups-empty">
+        Aucun move révélé encore utilisable pour calculer des dégâts à ce stade du combat.
+      </div>
+    );
+  }
+
+  return (
+    <div className="matchups-panel">
+      <h3>Dégâts possibles ce tour</h3>
+      <div className="matchups-grid">
+        {okMatchups.map((m, i) => (
+          <div key={i} className="matchup-card">
+            <div className="matchup-header">
+              <span className="matchup-attacker">{m.attackerLabel}</span>
+              <span className="matchup-move">{m.moveName}</span>
+              <span className="matchup-arrow">→</span>
+              <span className="matchup-defender">{m.defenderLabel}</span>
+            </div>
+            <div className="matchup-bar-track">
+              <div
+                className="matchup-bar-fill"
+                style={{ width: `${Math.min(100, m.result.maxPercent)}%` }}
+              />
+            </div>
+            <div className="matchup-percent">
+              {m.result.minPercent}% – {m.result.maxPercent}%
+              {m.result.maxPercent >= 100 && <span className="matchup-ko-tag"> KO possible</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+      {uniqueUnsupportedNames.length > 0 && (
+        <p className="matchups-unsupported-note">
+          Non calculable (hors dex Champions actuelle) : {uniqueUnsupportedNames.join(' · ')}
+        </p>
+      )}
     </div>
   );
 }
