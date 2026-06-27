@@ -202,7 +202,13 @@ export function applyLine(battle: BattleState, line: TurnLine): BattleState {
   switch (line.type) {
     case 'turn': {
       const turnNumber = parseInt(line.args[0], 10);
-      return { ...battle, turnNumber };
+      let next = { ...battle, turnNumber };
+      for (const key of Object.keys(next.pokemonByKey)) {
+        next = updatePokemon(next, key, (p) =>
+          p.switchedInThisTurn ? { ...p, switchedInThisTurn: false } : p,
+        );
+      }
+      return next;
     }
 
     case 'switch':
@@ -237,7 +243,7 @@ export function applyLine(battle: BattleState, line: TurnLine): BattleState {
       }
 
       pokemon = setPosition(pokemon, ident.position);
-      pokemon = { ...pokemon, nickname: ident.name, fainted: false };
+      pokemon = { ...pokemon, nickname: ident.name, fainted: false, switchedInThisTurn: true };
       pokemon = setHp(pokemon, hpStatus.hp, hpStatus.maxHp, hpStatus.isPercentage);
       if (details.teraType) {
         pokemon = setTerastallized(pokemon, details.teraType);
