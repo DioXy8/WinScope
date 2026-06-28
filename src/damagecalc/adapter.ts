@@ -73,6 +73,18 @@ function lookupMove(moveName: string) {
   return entry;
 }
 
+/**
+ * true si le move est offensif (Physical/Special, donc inflige des dégâts
+ * directs), false pour un move Status (Protect, Calm Mind, Tailwind...) ou
+ * si le move est inconnu de la dex Champions. Utilisé par l'UI pour ne pas
+ * afficher de "% de dégâts" sur des moves qui n'en infligent pas.
+ */
+export function isOffensiveMove(moveName: string): boolean {
+  const entry = MOVES[moveName];
+  if (!entry) return false;
+  return entry.category === 'Physical' || entry.category === 'Special';
+}
+
 const VENDOR_STAT_KEYS: (keyof VendorStatBlock)[] = ['at', 'df', 'sa', 'sd', 'sp'];
 
 /**
