@@ -75,6 +75,30 @@ function lookupMove(moveName: string) {
 
 const VENDOR_STAT_KEYS: (keyof VendorStatBlock)[] = ['at', 'df', 'sa', 'sd', 'sp'];
 
+/**
+ * Applique un stage de boost (-6..+6) à une stat, avec la même formule que
+ * getModifiedStat() dans le moteur vendor (floor, pas round) — il est
+ * essentiel de rester bit-à-bit identique à cette fonction, car le moteur
+ * vendor utilise `stats` (boosté) à la place de `rawStats` (brut) dès qu'un
+ * boost non nul est présent (cf. calcAttack/calcDefense dans engine.js).
+ */
+function applyBoostToStat(stat: number, stage: number): number {
+  if (stage > 0) return Math.floor((stat * (2 + stage)) / 2);
+  if (stage < 0) return Math.floor((stat * 2) / (2 - stage));
+  return stat;
+}
+
+function computeBoostedStats(rawStats: VendorStatBlock, boosts: VendorPokemon['boosts']): VendorStatBlock {
+  return {
+    hp: rawStats.hp, // HP n'est jamais boosté par les stages +/-6.
+    at: applyBoostToStat(rawStats.at, boosts.at),
+    df: applyBoostToStat(rawStats.df, boosts.df),
+    sa: applyBoostToStat(rawStats.sa, boosts.sa),
+    sd: applyBoostToStat(rawStats.sd, boosts.sd),
+    sp: applyBoostToStat(rawStats.sp, boosts.sp),
+  };
+}
+
 function computeRawStats(
   baseStats: ChampionsPokedexEntry['bs'],
   level: number,
@@ -182,6 +206,13 @@ export function buildVendorPokemon(pokemon: PokemonState): VendorPokemon {
     sp: pokemon.boosts.spe,
   };
 
+  // `rawStats` = stats brutes sans boost. `stats` = stats avec le stage de
+  // boost déjà appliqué. Le moteur vendor lit l'un ou l'autre selon le
+  // contexte (cf. calcAttack/calcDefense dans engine.js) — lui donner la
+  // même valeur dans les deux annule silencieusement tout effet des boosts
+  // de combat (Calm Mind, Intimidate, etc.), ce qui était le bug initial.
+  const boostedStats = computeBoostedStats(rawStats, boosts);
+
   const evBlock: VendorStatBlock = {
     hp: evs.hp ?? 0,
     at: evs.atk ?? 0,
@@ -215,7 +246,7 @@ export function buildVendorPokemon(pokemon: PokemonState): VendorPokemon {
     HPSPs: Math.round(evBlock.hp / 4),
 
     rawStats,
-    stats: rawStats,
+    stats: boostedStats,
     boosts,
 
     evs: evBlock,
