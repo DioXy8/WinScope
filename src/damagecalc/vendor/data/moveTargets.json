@@ -1,0 +1,2972 @@
+{
+  "Accelerock": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 1,
+    "target": "normal"
+  },
+  "Acid Armor": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "self"
+  },
+  "Acid Spray": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Acrobatics": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "any"
+  },
+  "Acupressure": {
+    "accuracy": null,
+    "pp": 30,
+    "priority": 0,
+    "target": "adjacentAllyOrSelf"
+  },
+  "Aerial Ace": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "any"
+  },
+  "After You": {
+    "accuracy": null,
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Agility": {
+    "accuracy": null,
+    "pp": 30,
+    "priority": 0,
+    "target": "self"
+  },
+  "Air Cutter": {
+    "accuracy": "95",
+    "pp": 25,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Air Slash": {
+    "accuracy": "95",
+    "pp": 15,
+    "priority": 0,
+    "target": "any"
+  },
+  "Alluring Voice": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Ally Switch": {
+    "accuracy": null,
+    "pp": 15,
+    "priority": 2,
+    "target": "self"
+  },
+  "Amnesia": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "self"
+  },
+  "Ancient Power": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Apple Acid": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Aqua Cutter": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Aqua Jet": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 1,
+    "target": "normal"
+  },
+  "Aqua Ring": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "self"
+  },
+  "Aqua Step": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Aqua Tail": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Armor Cannon": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Aromatic Mist": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "adjacentAlly"
+  },
+  "Assurance": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Attract": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Aura Sphere": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "any"
+  },
+  "Aura Wheel": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Aurora Veil": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "allySide"
+  },
+  "Avalanche": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": -4,
+    "target": "normal"
+  },
+  "Axe Kick": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Baby-Doll Eyes": {
+    "accuracy": "100",
+    "pp": 30,
+    "priority": 1,
+    "target": "normal"
+  },
+  "Baneful Bunker": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 4,
+    "target": "self"
+  },
+  "Barb Barrage": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Baton Pass": {
+    "accuracy": null,
+    "pp": 40,
+    "priority": 0,
+    "target": "self"
+  },
+  "Beak Blast": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": -3,
+    "target": "normal"
+  },
+  "Beat Up": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Belch": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Belly Drum": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "self"
+  },
+  "Bind": {
+    "accuracy": "85",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Bite": {
+    "accuracy": "100",
+    "pp": 25,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Bitter Blade": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Bitter Malice": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Blast Burn": {
+    "accuracy": "90",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Blaze Kick": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Blizzard": {
+    "accuracy": "70",
+    "pp": 5,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Block": {
+    "accuracy": null,
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Body Press": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Body Slam": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Bone Rush": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Boomburst": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "allAdjacent"
+  },
+  "Bounce": {
+    "accuracy": "85",
+    "pp": 5,
+    "priority": 0,
+    "target": "any"
+  },
+  "Brave Bird": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "any"
+  },
+  "Breaking Swipe": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Brick Break": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Brutal Swing": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "allAdjacent"
+  },
+  "Bug Bite": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Bug Buzz": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Bulk Up": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "self"
+  },
+  "Bulldoze": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "allAdjacent"
+  },
+  "Bullet Punch": {
+    "accuracy": "100",
+    "pp": 30,
+    "priority": 1,
+    "target": "normal"
+  },
+  "Bullet Seed": {
+    "accuracy": "100",
+    "pp": 30,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Burn Up": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Burning Jealousy": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Calm Mind": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "self"
+  },
+  "Ceaseless Edge": {
+    "accuracy": "90",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Charge": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "self"
+  },
+  "Charge Beam": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Charm": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Chilling Water": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Chilly Reception": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "all"
+  },
+  "Circle Throw": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": -6,
+    "target": "normal"
+  },
+  "Clanging Scales": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Clangorous Soul": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "self"
+  },
+  "Clear Smog": {
+    "accuracy": null,
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Close Combat": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Coaching": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "adjacentAlly"
+  },
+  "Coil": {
+    "accuracy": "1",
+    "pp": 20,
+    "priority": 0,
+    "target": "self"
+  },
+  "Comeuppance": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "scripted"
+  },
+  "Confuse Ray": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Copycat": {
+    "accuracy": "1",
+    "pp": 20,
+    "priority": 0,
+    "target": "self"
+  },
+  "Corrosive Gas": {
+    "accuracy": "100",
+    "pp": 40,
+    "priority": 0,
+    "target": "allAdjacent"
+  },
+  "Cosmic Power": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "self"
+  },
+  "Cotton Guard": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "self"
+  },
+  "Cotton Spore": {
+    "accuracy": "100",
+    "pp": 40,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Counter": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": -5,
+    "target": "scripted"
+  },
+  "Covet": {
+    "accuracy": "100",
+    "pp": 25,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Crabhammer": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Cross Chop": {
+    "accuracy": "80",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Cross Poison": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Crunch": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Crush Claw": {
+    "accuracy": "95",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Curse": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Dark Pulse": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "any"
+  },
+  "Darkest Lariat": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Dazzling Gleam": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Decorate": {
+    "accuracy": null,
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Defog": {
+    "accuracy": "1",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Destiny Bond": {
+    "accuracy": null,
+    "pp": 5,
+    "priority": 0,
+    "target": "self"
+  },
+  "Detect": {
+    "accuracy": null,
+    "pp": 5,
+    "priority": 4,
+    "target": "self"
+  },
+  "Dig": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Dire Claw": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Disable": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Discharge": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "allAdjacent"
+  },
+  "Dive": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Double Hit": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Double Team": {
+    "accuracy": null,
+    "pp": 15,
+    "priority": 0,
+    "target": "self"
+  },
+  "Double-Edge": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Draco Meteor": {
+    "accuracy": "90",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Dragon Cheer": {
+    "accuracy": null,
+    "pp": 15,
+    "priority": 0,
+    "target": "adjacentAlly"
+  },
+  "Dragon Claw": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Dragon Dance": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "self"
+  },
+  "Dragon Darts": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Dragon Pulse": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "any"
+  },
+  "Dragon Rush": {
+    "accuracy": "75",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Dragon Tail": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": -6,
+    "target": "normal"
+  },
+  "Drain Punch": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Draining Kiss": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Drill Peck": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "any"
+  },
+  "Drill Run": {
+    "accuracy": "95",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Dual Wingbeat": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Dynamic Punch": {
+    "accuracy": "50",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Earth Power": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Earthquake": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "allAdjacent"
+  },
+  "Eerie Impulse": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Eerie Spell": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Electric Terrain": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "all"
+  },
+  "Electrify": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Electro Ball": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Electro Shot": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Electroweb": {
+    "accuracy": "95",
+    "pp": 15,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Encore": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Endeavor": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Endure": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 4,
+    "target": "self"
+  },
+  "Energy Ball": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Entrainment": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Eruption": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Expanding Force": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Explosion": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "allAdjacent"
+  },
+  "Extrasensory": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Extreme Speed": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 2,
+    "target": "normal"
+  },
+  "Facade": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Fairy Lock": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "all"
+  },
+  "Fake Out": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 3,
+    "target": "normal"
+  },
+  "Fake Tears": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Feather Dance": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Feint": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 2,
+    "target": "normal"
+  },
+  "Fell Stinger": {
+    "accuracy": "100",
+    "pp": 25,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Fickle Beam": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Fiery Dance": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Final Gambit": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Fire Blast": {
+    "accuracy": "85",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Fire Fang": {
+    "accuracy": "95",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Fire Lash": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Fire Punch": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Fire Spin": {
+    "accuracy": "85",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "First Impression": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 2,
+    "target": "normal"
+  },
+  "Fissure": {
+    "accuracy": "30",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Flail": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Flame Charge": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Flamethrower": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Flare Blitz": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Flash Cannon": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Flatter": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Fling": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Flip Turn": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Flower Trick": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Fly": {
+    "accuracy": "95",
+    "pp": 15,
+    "priority": 0,
+    "target": "any"
+  },
+  "Flying Press": {
+    "accuracy": "95",
+    "pp": 10,
+    "priority": 0,
+    "target": "any"
+  },
+  "Focus Blast": {
+    "accuracy": "70",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Focus Energy": {
+    "accuracy": "1",
+    "pp": 30,
+    "priority": 0,
+    "target": "self"
+  },
+  "Focus Punch": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": -3,
+    "target": "normal"
+  },
+  "Follow Me": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 2,
+    "target": "self"
+  },
+  "Forest's Curse": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Foul Play": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Freeze-Dry": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Frenzy Plant": {
+    "accuracy": "90",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Frost Breath": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Future Sight": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Gastro Acid": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Giga Drain": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Giga Impact": {
+    "accuracy": "90",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Gigaton Hammer": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Glare": {
+    "accuracy": "100",
+    "pp": 30,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Grass Knot": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Grassy Glide": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Grassy Terrain": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "all"
+  },
+  "Grav Apple": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Gravity": {
+    "accuracy": null,
+    "pp": 5,
+    "priority": 0,
+    "target": "all"
+  },
+  "Growth": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "self"
+  },
+  "Guard Split": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Guard Swap": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Guillotine": {
+    "accuracy": "30",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Gunk Shot": {
+    "accuracy": "80",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Gyro Ball": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Hammer Arm": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Hard Press": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Haze": {
+    "accuracy": null,
+    "pp": 30,
+    "priority": 0,
+    "target": "all"
+  },
+  "Head Smash": {
+    "accuracy": "80",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Headlong Rush": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Heal Bell": {
+    "accuracy": null,
+    "pp": 5,
+    "priority": 0,
+    "target": "allyTeam"
+  },
+  "Heal Pulse": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "any"
+  },
+  "Healing Wish": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "self"
+  },
+  "Heat Crash": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Heat Wave": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Heavy Slam": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Helping Hand": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 5,
+    "target": "adjacentAlly"
+  },
+  "Hex": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "High Horsepower": {
+    "accuracy": "95",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "High Jump Kick": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Horn Drill": {
+    "accuracy": "30",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Horn Leech": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Howl": {
+    "accuracy": null,
+    "pp": 40,
+    "priority": 0,
+    "target": "allies"
+  },
+  "Hurricane": {
+    "accuracy": "70",
+    "pp": 10,
+    "priority": 0,
+    "target": "any"
+  },
+  "Hydro Cannon": {
+    "accuracy": "90",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Hydro Pump": {
+    "accuracy": "80",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Hyper Beam": {
+    "accuracy": "90",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Hyper Voice": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Hypnosis": {
+    "accuracy": "60",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Ice Beam": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Ice Fang": {
+    "accuracy": "95",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Ice Hammer": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Ice Punch": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Ice Shard": {
+    "accuracy": "100",
+    "pp": 30,
+    "priority": 1,
+    "target": "normal"
+  },
+  "Ice Spinner": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Icicle Crash": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Icicle Spear": {
+    "accuracy": "100",
+    "pp": 30,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Icy Wind": {
+    "accuracy": "95",
+    "pp": 15,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Imprison": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "self"
+  },
+  "Infernal Parade": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Inferno": {
+    "accuracy": "50",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Infestation": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Ingrain": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "self"
+  },
+  "Instruct": {
+    "accuracy": null,
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Iron Defense": {
+    "accuracy": null,
+    "pp": 15,
+    "priority": 0,
+    "target": "self"
+  },
+  "Iron Head": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Iron Tail": {
+    "accuracy": "75",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Jet Punch": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 1,
+    "target": "normal"
+  },
+  "King's Shield": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 4,
+    "target": "self"
+  },
+  "Knock Off": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Kowtow Cleave": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Lash Out": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Last Resort": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Last Respects": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Lava Plume": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "allAdjacent"
+  },
+  "Leaf Blade": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Leaf Storm": {
+    "accuracy": "90",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Leech Life": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Leech Seed": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Life Dew": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "allies"
+  },
+  "Light Screen": {
+    "accuracy": null,
+    "pp": 30,
+    "priority": 0,
+    "target": "allySide"
+  },
+  "Light of Ruin": {
+    "accuracy": "90",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Liquidation": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Lock-On": {
+    "accuracy": null,
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Low Kick": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Low Sweep": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Lumina Crash": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Lunge": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Mach Punch": {
+    "accuracy": "100",
+    "pp": 30,
+    "priority": 1,
+    "target": "normal"
+  },
+  "Magic Powder": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Magic Room": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "all"
+  },
+  "Magnet Rise": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "self"
+  },
+  "Magnetic Flux": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "allySide"
+  },
+  "Make It Rain": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Matcha Gotcha": {
+    "accuracy": "90",
+    "pp": 15,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Mean Look": {
+    "accuracy": null,
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Mega Kick": {
+    "accuracy": "75",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Megahorn": {
+    "accuracy": "85",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Memento": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Metal Burst": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "scripted"
+  },
+  "Metal Sound": {
+    "accuracy": "85",
+    "pp": 40,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Meteor Beam": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Meteor Mash": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Minimize": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "self"
+  },
+  "Mirror Coat": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": -5,
+    "target": "scripted"
+  },
+  "Misty Explosion": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "allAdjacent"
+  },
+  "Misty Terrain": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "all"
+  },
+  "Moonblast": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Moonlight": {
+    "accuracy": null,
+    "pp": 5,
+    "priority": 0,
+    "target": "self"
+  },
+  "Morning Sun": {
+    "accuracy": null,
+    "pp": 5,
+    "priority": 0,
+    "target": "self"
+  },
+  "Mortal Spin": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Mountain Gale": {
+    "accuracy": "85",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Mud Shot": {
+    "accuracy": "95",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Mud-Slap": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Muddy Water": {
+    "accuracy": "85",
+    "pp": 10,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Mystical Fire": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Nasty Plot": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "self"
+  },
+  "Night Daze": {
+    "accuracy": "95",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Night Shade": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Night Slash": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "No Retreat": {
+    "accuracy": null,
+    "pp": 5,
+    "priority": 0,
+    "target": "self"
+  },
+  "Noble Roar": {
+    "accuracy": "100",
+    "pp": 30,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Nuzzle": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Outrage": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "randomNormal"
+  },
+  "Overheat": {
+    "accuracy": "90",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Pain Split": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Parabolic Charge": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "allAdjacent"
+  },
+  "Parting Shot": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Payback": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Perish Song": {
+    "accuracy": null,
+    "pp": 5,
+    "priority": 0,
+    "target": "all"
+  },
+  "Petal Blizzard": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "allAdjacent"
+  },
+  "Petal Dance": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "randomNormal"
+  },
+  "Phantom Force": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Pin Missile": {
+    "accuracy": "95",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Play Rough": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Pluck": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "any"
+  },
+  "Poison Fang": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Poison Jab": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Poison Powder": {
+    "accuracy": "75",
+    "pp": 35,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Pollen Puff": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Poltergeist": {
+    "accuracy": "90",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Population Bomb": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Pounce": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Power Gem": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Power Split": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Power Swap": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Power Trick": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "self"
+  },
+  "Power Trip": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Power Whip": {
+    "accuracy": "85",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Protect": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 4,
+    "target": "self"
+  },
+  "Psych Up": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Psychic": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Psychic Fangs": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Psychic Noise": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Psychic Terrain": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "all"
+  },
+  "Psycho Cut": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Psyshield Bash": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Psyshock": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Quash": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Quick Attack": {
+    "accuracy": "100",
+    "pp": 30,
+    "priority": 1,
+    "target": "normal"
+  },
+  "Quick Guard": {
+    "accuracy": null,
+    "pp": 15,
+    "priority": 3,
+    "target": "allySide"
+  },
+  "Quiver Dance": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "self"
+  },
+  "Rage Fist": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Rage Powder": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 2,
+    "target": "self"
+  },
+  "Raging Bull": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Raging Fury": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "randomNormal"
+  },
+  "Rain Dance": {
+    "accuracy": null,
+    "pp": 5,
+    "priority": 0,
+    "target": "all"
+  },
+  "Rapid Spin": {
+    "accuracy": "100",
+    "pp": 40,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Razor Shell": {
+    "accuracy": "95",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Recover": {
+    "accuracy": null,
+    "pp": 5,
+    "priority": 0,
+    "target": "self"
+  },
+  "Recycle": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "self"
+  },
+  "Reflect": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "allySide"
+  },
+  "Reflect Type": {
+    "accuracy": null,
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Rest": {
+    "accuracy": null,
+    "pp": 5,
+    "priority": 0,
+    "target": "self"
+  },
+  "Reversal": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Rising Voltage": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Roar": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": -6,
+    "target": "normal"
+  },
+  "Rock Blast": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Rock Polish": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "self"
+  },
+  "Rock Slide": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Rock Tomb": {
+    "accuracy": "95",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Rock Wrecker": {
+    "accuracy": "90",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Role Play": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Roost": {
+    "accuracy": null,
+    "pp": 5,
+    "priority": 0,
+    "target": "self"
+  },
+  "Round": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Sacred Sword": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Safeguard": {
+    "accuracy": null,
+    "pp": 25,
+    "priority": 0,
+    "target": "allySide"
+  },
+  "Salt Cure": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Sand Tomb": {
+    "accuracy": "85",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Sandstorm": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "all"
+  },
+  "Scald": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Scale Shot": {
+    "accuracy": "90",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Scary Face": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Scorching Sands": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Screech": {
+    "accuracy": "85",
+    "pp": 40,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Seed Bomb": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Seismic Toss": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Self-Destruct": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "allAdjacent"
+  },
+  "Shadow Ball": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Shadow Claw": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Shadow Punch": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Shadow Sneak": {
+    "accuracy": "100",
+    "pp": 30,
+    "priority": 1,
+    "target": "normal"
+  },
+  "Shed Tail": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "self"
+  },
+  "Sheer Cold": {
+    "accuracy": "30",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Shell Side Arm": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Shell Smash": {
+    "accuracy": null,
+    "pp": 15,
+    "priority": 0,
+    "target": "self"
+  },
+  "Shelter": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "self"
+  },
+  "Simple Beam": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Sing": {
+    "accuracy": "55",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Skill Swap": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Skitter Smack": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Sky Attack": {
+    "accuracy": "90",
+    "pp": 5,
+    "priority": 0,
+    "target": "any"
+  },
+  "Slack Off": {
+    "accuracy": null,
+    "pp": 5,
+    "priority": 0,
+    "target": "self"
+  },
+  "Sleep Powder": {
+    "accuracy": "75",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Sleep Talk": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "self"
+  },
+  "Sludge Bomb": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Sludge Wave": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "allAdjacent"
+  },
+  "Smack Down": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Smart Strike": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Snap Trap": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Snarl": {
+    "accuracy": "95",
+    "pp": 15,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Snore": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Snowscape": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "all"
+  },
+  "Soak": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Solar Beam": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Solar Blade": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Sparkling Aria": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "allAdjacent"
+  },
+  "Speed Swap": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Spicy Extract": {
+    "accuracy": null,
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Spikes": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "foeSide"
+  },
+  "Spiky Shield": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 4,
+    "target": "self"
+  },
+  "Spirit Break": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Spirit Shackle": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Spite": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Stealth Rock": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "foeSide"
+  },
+  "Steel Beam": {
+    "accuracy": "95",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Steel Roller": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Steel Wing": {
+    "accuracy": "90",
+    "pp": 25,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Sticky Web": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "foeSide"
+  },
+  "Stockpile": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "self"
+  },
+  "Stomping Tantrum": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Stone Axe": {
+    "accuracy": "90",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Stone Edge": {
+    "accuracy": "80",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Stored Power": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Storm Throw": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Strength Sap": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "String Shot": {
+    "accuracy": "95",
+    "pp": 40,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Struggle": {
+    "accuracy": null,
+    "pp": 1,
+    "priority": 0,
+    "target": "randomNormal"
+  },
+  "Struggle Bug": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Stuff Cheeks": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "self"
+  },
+  "Stun Spore": {
+    "accuracy": "75",
+    "pp": 30,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Substitute": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "self"
+  },
+  "Sucker Punch": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 1,
+    "target": "normal"
+  },
+  "Sunny Day": {
+    "accuracy": null,
+    "pp": 5,
+    "priority": 0,
+    "target": "all"
+  },
+  "Super Fang": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Supercell Slam": {
+    "accuracy": "95",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Superpower": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Surf": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "allAdjacent"
+  },
+  "Swagger": {
+    "accuracy": "85",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Swallow": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "self"
+  },
+  "Sweet Kiss": {
+    "accuracy": "75",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Sweet Scent": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Switcheroo": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Swords Dance": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "self"
+  },
+  "Synthesis": {
+    "accuracy": null,
+    "pp": 5,
+    "priority": 0,
+    "target": "self"
+  },
+  "Syrup Bomb": {
+    "accuracy": "85",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Tail Slap": {
+    "accuracy": "85",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Tailwind": {
+    "accuracy": null,
+    "pp": 15,
+    "priority": 0,
+    "target": "allySide"
+  },
+  "Taunt": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Tearful Look": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Teatime": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "all"
+  },
+  "Teeter Dance": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "allAdjacent"
+  },
+  "Temper Flare": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Terrain Pulse": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Thief": {
+    "accuracy": "100",
+    "pp": 25,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Thrash": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "randomNormal"
+  },
+  "Throat Chop": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Thunder": {
+    "accuracy": "70",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Thunder Fang": {
+    "accuracy": "95",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Thunder Punch": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Thunder Wave": {
+    "accuracy": "90",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Thunderbolt": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Tickle": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Tidy Up": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "self"
+  },
+  "Topsy-Turvy": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Torch Song": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Torment": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Toxic": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Toxic Spikes": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": 0,
+    "target": "foeSide"
+  },
+  "Toxic Thread": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Trailblaze": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Transform": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Tri Attack": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Trick": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Trick Room": {
+    "accuracy": "1",
+    "pp": 5,
+    "priority": -7,
+    "target": "all"
+  },
+  "Trick-or-Treat": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Triple Arrows": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Triple Axel": {
+    "accuracy": "90",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Trop Kick": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Twin Beam": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "U-turn": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Upper Hand": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 3,
+    "target": "normal"
+  },
+  "Uproar": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "randomNormal"
+  },
+  "Vacuum Wave": {
+    "accuracy": "100",
+    "pp": 30,
+    "priority": 1,
+    "target": "normal"
+  },
+  "Venoshock": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Volt Switch": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Volt Tackle": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Water Pulse": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 0,
+    "target": "any"
+  },
+  "Water Shuriken": {
+    "accuracy": "100",
+    "pp": 20,
+    "priority": 1,
+    "target": "normal"
+  },
+  "Water Spout": {
+    "accuracy": "100",
+    "pp": 5,
+    "priority": 0,
+    "target": "allAdjacentFoes"
+  },
+  "Waterfall": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Wave Crash": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Weather Ball": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Whirlpool": {
+    "accuracy": "85",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Whirlwind": {
+    "accuracy": null,
+    "pp": 20,
+    "priority": -6,
+    "target": "normal"
+  },
+  "Wide Guard": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 3,
+    "target": "allySide"
+  },
+  "Wild Charge": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Will-O-Wisp": {
+    "accuracy": "85",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Wish": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "self"
+  },
+  "Wonder Room": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "all"
+  },
+  "Wood Hammer": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Worry Seed": {
+    "accuracy": "100",
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Wrap": {
+    "accuracy": "90",
+    "pp": 20,
+    "priority": 0,
+    "target": "normal"
+  },
+  "X-Scissor": {
+    "accuracy": "100",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Yawn": {
+    "accuracy": null,
+    "pp": 10,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Zap Cannon": {
+    "accuracy": "50",
+    "pp": 5,
+    "priority": 0,
+    "target": "normal"
+  },
+  "Zen Headbutt": {
+    "accuracy": "90",
+    "pp": 15,
+    "priority": 0,
+    "target": "normal"
+  }
+}
