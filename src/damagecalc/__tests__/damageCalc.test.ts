@@ -96,4 +96,64 @@ describe('calculateDamage', () => {
 
     expect(withSun.maxDamage).toBeGreaterThan(noWeather.maxDamage);
   });
+
+  it('increases attacker damage output as the attack boost stage increases (regression: stats vs rawStats mixup)', () => {
+    const battle = createInitialBattleState();
+    const garchomp = withRevealed(
+      createInitialPokemonState({ species: 'Garchomp', side: 'p1', level: 50 }),
+      {
+        userProvidedSet: {
+          ability: null,
+          item: null,
+          nature: 'Adamant',
+          evs: { atk: 252 },
+          ivs: {},
+          teraType: null,
+        },
+      },
+    );
+    const incineroar = withRevealed(
+      createInitialPokemonState({ species: 'Incineroar', side: 'p2', level: 50 }),
+      { maxHp: 190, currentHp: 190, hpIsPercentage: false },
+    );
+
+    const noBoost = calculateDamage(garchomp, incineroar, 'Earthquake', battle, 'p1');
+    const plusOne = calculateDamage(
+      { ...garchomp, boosts: { ...garchomp.boosts, atk: 1 } },
+      incineroar,
+      'Earthquake',
+      battle,
+      'p1',
+    );
+    const plusTwo = calculateDamage(
+      { ...garchomp, boosts: { ...garchomp.boosts, atk: 2 } },
+      incineroar,
+      'Earthquake',
+      battle,
+      'p1',
+    );
+
+    expect(plusOne.maxDamage).toBeGreaterThan(noBoost.maxDamage);
+    expect(plusTwo.maxDamage).toBeGreaterThan(plusOne.maxDamage);
+  });
+
+  it('increases defender bulk (reduces damage taken) as the defense boost stage increases', () => {
+    const battle = createInitialBattleState();
+    const garchomp = createInitialPokemonState({ species: 'Garchomp', side: 'p1', level: 50 });
+    const incineroar = withRevealed(
+      createInitialPokemonState({ species: 'Incineroar', side: 'p2', level: 50 }),
+      { maxHp: 190, currentHp: 190, hpIsPercentage: false },
+    );
+
+    const noBoost = calculateDamage(garchomp, incineroar, 'Earthquake', battle, 'p1');
+    const defenderPlusOne = calculateDamage(
+      garchomp,
+      { ...incineroar, boosts: { ...incineroar.boosts, def: 1 } },
+      'Earthquake',
+      battle,
+      'p1',
+    );
+
+    expect(defenderPlusOne.maxDamage).toBeLessThan(noBoost.maxDamage);
+  });
 });
