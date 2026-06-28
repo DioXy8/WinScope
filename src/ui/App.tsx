@@ -6,6 +6,10 @@ import type { BattleState, PokemonState } from '../engine/state';
 import { estimateWinProbability } from '../search/evaluator';
 import { calculateDamage, DexLookupError } from '../damagecalc/damageCalc';
 import type { DamageCalcResult } from '../damagecalc/damageCalc';
+import { analyzeActionsForPosition } from '../search/turnAnalyzer';
+import type { ActionScore } from '../search/turnAnalyzer';
+import type { PlayerAction } from '../search/actionTypes';
+import type { PokemonPosition } from '../replay/types';
 
 type LoadState =
   | { status: 'idle' }
@@ -144,6 +148,8 @@ function BattleExplorer({
       <FieldSummary battle={current} />
 
       <MatchupsPanel battle={current} />
+
+      <TurnAnalysisPanel battle={current} />
 
       <div className="sides-grid">
         <SideColumn label={p1Name} active={p1Active} bench={p1Bench} sideState={current.sides.p1} />
@@ -483,6 +489,117 @@ function MatchupsPanel({ battle }: { battle: BattleState }) {
         <p className="matchups-unsupported-note">
           Non calculable (hors dex Champions actuelle) : {uniqueUnsupportedNames.join(' · ')}
         </p>
+      )}
+    </div>
+  );
+}
+
+type AnalysisState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'done'; scores: ActionScore[] };
+
+function describeActionShort(action: PlayerAction): string {
+  if (action.kind === 'switch') {
+    return `Switch (${action.incomingKey.split(':')[1] ?? action.incomingKey})`;
+  }
+  if (action.targetPositions.length === 0) {
+    return action.moveName;
+  }
+  return `${action.moveName} → ${action.targetPositions.join(', ')}`;
+}
+
+function TurnAnalysisPanel({ battle }: { battle: BattleState }) {
+  const activePositions = Object.keys(battle.activeByPosition) as PokemonPosition[];
+
+  if (activePositions.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="turn-analysis-panel">
+      <h3>Analyse du tour — espérance de victoire par action</h3>
+      <p className="turn-analysis-note">
+        Pour chaque Pokémon actif, compare ses actions possibles ce tour en simulant les réponses
+        adverses plausibles. Calcul à la demande (peut prendre quelques instants).
+      </p>
+      <div className="turn-analysis-grid">
+        {activePositions.map((position) => (
+          <PositionAnalysisCard key={position} battle={battle} position={position} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PositionAnalysisCard({
+  battle,
+  position,
+}: {
+  battle: BattleState;
+  position: PokemonPosition;
+}) {
+  const [state, setState] = useState<AnalysisState>({ status: 'idle' });
+
+  const pokemonKey = battle.activeByPosition[position];
+  const pokemon = pokemonKey ? battle.pokemonByKey[pokemonKey] : null;
+
+  function handleAnalyze() {
+    if (!pokemon) return;
+    setState({ status: 'loading' });
+    requestAnimationFrame(() => {
+      try {
+        const scores = analyzeActionsForPosition(battle, position, null);
+        setState({ status: 'done', scores });
+      } catch (err) {
+        setState({ status: 'error', message: (err as Error).message });
+      }
+    });
+  }
+
+  if (!pokemon || pokemon.fainted) {
+    return null;
+  }
+
+  const label = pokemon.nickname || pokemon.species;
+  const best = state.status === 'done' ? state.scores[0] : null;
+
+  return (
+    <div className="position-analysis-card">
+      <div className="position-analysis-header">
+        <span className="position-analysis-label">
+          {label} ({position})
+        </span>
+        <button
+          className="position-analysis-btn"
+          onClick={handleAnalyze}
+          disabled={state.status === 'loading'}
+        >
+          {state.status === 'loading' ? 'Calcul...' : state.status === 'done' ? 'Recalculer' : 'Analyser'}
+        </button>
+      </div>
+
+      {state.status === 'error' && <p className="position-analysis-error">{state.message}</p>}
+
+      {state.status === 'done' && (
+        <div className="action-ranking">
+          {state.scores.map((score, i) => (
+            <div
+              key={i}
+              className={`action-ranking-row ${best && score === best ? 'action-ranking-best' : ''}`}
+            >
+              <span className="action-ranking-name">{describeActionShort(score.action)}</span>
+              <div className="action-ranking-bar-track">
+                <div
+                  className="action-ranking-bar-fill"
+                  style={{ width: `${Math.max(0, Math.min(100, score.winExpectancy))}%` }}
+                />
+              </div>
+              <span className="action-ranking-percent">{score.winExpectancy}%</span>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
