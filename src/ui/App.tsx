@@ -156,7 +156,7 @@ function BattleExplorer({
 
       <MatchupsPanel battle={current} p1Name={p1Name} p2Name={p2Name} />
 
-      <TurnAnalysisPanel battle={current} />
+      <TurnAnalysisPanel battle={current} p1Name={p1Name} p2Name={p2Name} />
 
       <div className="sides-grid">
         <SideColumn label={p1Name} active={p1Active} bench={p1Bench} sideState={current.sides.p1} />
@@ -540,12 +540,23 @@ function describeActionShort(action: PlayerAction): string {
   return `${action.moveName} → ${action.targetPositions.join(', ')}`;
 }
 
-function TurnAnalysisPanel({ battle }: { battle: BattleState }) {
+function TurnAnalysisPanel({
+  battle,
+  p1Name,
+  p2Name,
+}: {
+  battle: BattleState;
+  p1Name: string;
+  p2Name: string;
+}) {
   const activePositions = Object.keys(battle.activeByPosition) as PokemonPosition[];
 
   if (activePositions.length === 0) {
     return null;
   }
+
+  const p1Positions = activePositions.filter((p) => p.startsWith('p1'));
+  const p2Positions = activePositions.filter((p) => p.startsWith('p2'));
 
   return (
     <div className="turn-analysis-panel">
@@ -554,10 +565,23 @@ function TurnAnalysisPanel({ battle }: { battle: BattleState }) {
         Pour chaque Pokémon actif, compare ses actions possibles ce tour en simulant les réponses
         adverses plausibles. Calcul à la demande (peut prendre quelques instants).
       </p>
-      <div className="turn-analysis-grid">
-        {activePositions.map((position) => (
-          <PositionAnalysisCard key={position} battle={battle} position={position} />
-        ))}
+      <div className="turn-analysis-columns">
+        <div className="turn-analysis-column">
+          <h4 className="matchups-column-title matchups-column-p1">{p1Name}</h4>
+          <div className="turn-analysis-grid">
+            {p1Positions.map((position) => (
+              <PositionAnalysisCard key={position} battle={battle} position={position} />
+            ))}
+          </div>
+        </div>
+        <div className="turn-analysis-column">
+          <h4 className="matchups-column-title matchups-column-p2">{p2Name}</h4>
+          <div className="turn-analysis-grid">
+            {p2Positions.map((position) => (
+              <PositionAnalysisCard key={position} battle={battle} position={position} />
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
