@@ -289,6 +289,27 @@ body {
   margin-bottom: 6px;
 }
 
+.header-badges {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.pokemon-card.just-switched-in {
+  border-color: #4f9dff;
+  box-shadow: 0 0 0 1px #4f9dff inset;
+}
+
+.switch-badge {
+  font-size: 0.62rem;
+  background: #1d2f4f;
+  color: #8fc1ff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .pokemon-name {
   font-weight: 600;
   font-size: 0.9rem;
@@ -481,6 +502,99 @@ body {
   color: #777;
 }
 
+.matchups-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 700px) {
+  .matchups-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.matchups-column-title {
+  font-size: 0.78rem;
+  margin: 0 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #2a2e3a;
+}
+
+.matchups-column-p1 {
+  color: #6ec6ff;
+}
+
+.matchups-column-p2 {
+  color: #ff9b6b;
+}
+
+.turn-actions-log {
+  background: #161922;
+  border: 1px solid #2a2e3a;
+  border-radius: 12px;
+  padding: 14px 18px;
+}
+
+.turn-actions-log h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 0.9rem;
+  color: #ffd93d;
+}
+
+.turn-actions-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  counter-reset: turn-action-counter;
+}
+
+.turn-action-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  counter-increment: turn-action-counter;
+}
+
+.turn-action-item::before {
+  content: counter(turn-action-counter) '.';
+  color: #555;
+  width: 18px;
+  flex-shrink: 0;
+}
+
+.turn-action-side-tag {
+  font-size: 0.62rem;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+
+.turn-action-p1 .turn-action-side-tag {
+  background: #1d2f4f;
+  color: #6ec6ff;
+}
+
+.turn-action-p2 .turn-action-side-tag {
+  background: #4f2a1d;
+  color: #ff9b6b;
+}
+
+.turn-action-pokemon {
+  font-weight: 600;
+  color: #e6e6e6;
+}
+
+.turn-action-text {
+  color: #aaa;
+}
+
 .turn-analysis-panel {
   background: #161922;
   border: 1px solid #2a2e3a;
@@ -546,6 +660,12 @@ body {
 .position-analysis-error {
   color: #ff9b9b;
   font-size: 0.75rem;
+}
+
+.position-analysis-empty {
+  color: #777;
+  font-size: 0.75rem;
+  font-style: italic;
 }
 
 .action-ranking {
