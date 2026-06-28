@@ -622,6 +622,22 @@ body {
   gap: 12px;
 }
 
+.turn-analysis-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 700px) {
+  .turn-analysis-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.turn-analysis-column .turn-analysis-grid {
+  grid-template-columns: 1fr;
+}
+
 .position-analysis-card {
   background: #1a1d28;
   border: 1px solid #2a2e3a;
