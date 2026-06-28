@@ -480,3 +480,113 @@ body {
   font-size: 0.7rem;
   color: #777;
 }
+
+.turn-analysis-panel {
+  background: #161922;
+  border: 1px solid #2a2e3a;
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+
+.turn-analysis-panel h3 {
+  margin-top: 0;
+  margin-bottom: 6px;
+  font-size: 0.95rem;
+  color: #ffd93d;
+}
+
+.turn-analysis-note {
+  font-size: 0.75rem;
+  color: #888;
+  margin-top: 0;
+  margin-bottom: 14px;
+}
+
+.turn-analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.position-analysis-card {
+  background: #1a1d28;
+  border: 1px solid #2a2e3a;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.position-analysis-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.position-analysis-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #e6e6e6;
+}
+
+.position-analysis-btn {
+  background: #2a2e3a;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.position-analysis-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.position-analysis-error {
+  color: #ff9b9b;
+  font-size: 0.75rem;
+}
+
+.action-ranking {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.action-ranking-row {
+  display: grid;
+  grid-template-columns: 1fr 90px 42px;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+}
+
+.action-ranking-best .action-ranking-name {
+  color: #5fd068;
+  font-weight: 700;
+}
+
+.action-ranking-name {
+  color: #ccc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.action-ranking-bar-track {
+  height: 6px;
+  border-radius: 3px;
+  background: #2a2e3a;
+  overflow: hidden;
+}
+
+.action-ranking-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4f9dff, #5fd068);
+}
+
+.action-ranking-percent {
+  text-align: right;
+  color: #aaa;
+}
