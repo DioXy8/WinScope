@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
 import { fetchReplay, ReplayFetchError } from '../replay/fetcher';
-import { parseReplayLog } from '../replay/logParser';
+import { parsePokemonIdent, parseReplayLog } from '../replay/logParser';
+import type { ParsedReplayLog } from '../replay/types';
 import { replayToStates } from '../engine/reducer';
 import type { BattleState, PokemonState } from '../engine/state';
 import { estimateWinProbability } from '../search/evaluator';
 import { calculateDamage, DexLookupError } from '../damagecalc/damageCalc';
 import type { DamageCalcResult } from '../damagecalc/damageCalc';
+import { isOffensiveMove } from '../damagecalc/adapter';
 import { analyzeActionsForPosition } from '../search/turnAnalyzer';
 import type { ActionScore } from '../search/turnAnalyzer';
 import type { PlayerAction } from '../search/actionTypes';
@@ -15,7 +17,7 @@ type LoadState =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'success'; states: BattleState[]; p1Name: string; p2Name: string };
+  | { status: 'success'; states: BattleState[]; parsedReplay: ParsedReplayLog; p1Name: string; p2Name: string };
 
 export default function App() {
   const [url, setUrl] = useState('');
@@ -34,8 +36,8 @@ export default function App() {
       const states = replayToStates(parsed);
       const p1Name = parsed.players.find((p) => p.side === 'p1')?.username ?? 'Joueur 1';
       const p2Name = parsed.players.find((p) => p.side === 'p2')?.username ?? 'Joueur 2';
-      setState({ status: 'success', states, p1Name, p2Name });
-      setTurnIndex(states.length - 1);
+      setState({ status: 'success', states, parsedReplay: parsed, p1Name, p2Name });
+      setTurnIndex(0);
     } catch (err) {
       const message =
         err instanceof ReplayFetchError
@@ -78,6 +80,7 @@ export default function App() {
       {state.status === 'success' && (
         <BattleExplorer
           states={state.states}
+          parsedReplay={state.parsedReplay}
           p1Name={state.p1Name}
           p2Name={state.p2Name}
           turnIndex={turnIndex}
@@ -90,12 +93,14 @@ export default function App() {
 
 function BattleExplorer({
   states,
+  parsedReplay,
   p1Name,
   p2Name,
   turnIndex,
   onTurnChange,
 }: {
   states: BattleState[];
+  parsedReplay: ParsedReplayLog;
   p1Name: string;
   p2Name: string;
   turnIndex: number;
@@ -141,13 +146,15 @@ function BattleExplorer({
         </span>
       </div>
 
+      <TurnActionsLog parsedReplay={parsedReplay} turnNumber={current.turnNumber} battle={current} />
+
       <WinBar p1Name={p1Name} p2Name={p2Name} p1Percent={currentWinP1} />
 
       <WinHistory probabilities={winProbabilities} currentIndex={turnIndex} onSelect={onTurnChange} />
 
       <FieldSummary battle={current} />
 
-      <MatchupsPanel battle={current} />
+      <MatchupsPanel battle={current} p1Name={p1Name} p2Name={p2Name} />
 
       <TurnAnalysisPanel battle={current} />
 
@@ -392,6 +399,7 @@ function PokemonCard({ pokemon, compact }: { pokemon: PokemonState; compact?: bo
 type MatchupEntry =
   | {
       status: 'ok';
+      attackerSide: 'p1' | 'p2';
       attackerLabel: string;
       defenderLabel: string;
       moveName: string;
@@ -399,6 +407,7 @@ type MatchupEntry =
     }
   | {
       status: 'unsupported';
+      attackerSide: 'p1' | 'p2';
       attackerLabel: string;
       defenderLabel: string;
       moveName: string;
@@ -421,17 +430,18 @@ function computeMatchups(battle: BattleState): MatchupEntry[] {
       for (const defender of defenders) {
         if (defender.fainted) continue;
         for (const moveName of attacker.revealedMoves) {
+          if (!isOffensiveMove(moveName)) continue; // Status moves (Protect, Calm Mind...) n'infligent pas de dégâts directs.
           const attackerLabel = attacker.nickname || attacker.species;
           const defenderLabel = defender.nickname || defender.species;
           try {
             const result = calculateDamage(attacker, defender, moveName, battle, attackerSide);
-            entries.push({ status: 'ok', attackerLabel, defenderLabel, moveName, result });
+            entries.push({ status: 'ok', attackerSide, attackerLabel, defenderLabel, moveName, result });
           } catch (err) {
             const message =
               err instanceof DexLookupError
                 ? `"${err.name}" hors dex Champions`
                 : `Erreur de calcul (${(err as Error).message})`;
-            entries.push({ status: 'unsupported', attackerLabel, defenderLabel, moveName, message });
+            entries.push({ status: 'unsupported', attackerSide, attackerLabel, defenderLabel, moveName, message });
           }
         }
       }
@@ -441,16 +451,14 @@ function computeMatchups(battle: BattleState): MatchupEntry[] {
   return entries;
 }
 
-function MatchupsPanel({ battle }: { battle: BattleState }) {
+function MatchupsPanel({ battle, p1Name, p2Name }: { battle: BattleState; p1Name: string; p2Name: string }) {
   const matchups = useMemo(() => computeMatchups(battle), [battle]);
 
   const okMatchups = matchups.filter((m): m is MatchupEntry & { status: 'ok' } => m.status === 'ok');
   const unsupported = matchups.filter(
     (m): m is MatchupEntry & { status: 'unsupported' } => m.status === 'unsupported',
   );
-  const uniqueUnsupportedNames = Array.from(
-    new Set(unsupported.map((m) => m.message)),
-  );
+  const uniqueUnsupportedNames = Array.from(new Set(unsupported.map((m) => m.message)));
 
   if (matchups.length === 0) {
     return (
@@ -460,36 +468,58 @@ function MatchupsPanel({ battle }: { battle: BattleState }) {
     );
   }
 
+  const p1Attacks = okMatchups.filter((m) => m.attackerSide === 'p1');
+  const p2Attacks = okMatchups.filter((m) => m.attackerSide === 'p2');
+
   return (
     <div className="matchups-panel">
       <h3>Dégâts possibles ce tour</h3>
-      <div className="matchups-grid">
-        {okMatchups.map((m, i) => (
-          <div key={i} className="matchup-card">
-            <div className="matchup-header">
-              <span className="matchup-attacker">{m.attackerLabel}</span>
-              <span className="matchup-move">{m.moveName}</span>
-              <span className="matchup-arrow">→</span>
-              <span className="matchup-defender">{m.defenderLabel}</span>
-            </div>
-            <div className="matchup-bar-track">
-              <div
-                className="matchup-bar-fill"
-                style={{ width: `${Math.min(100, m.result.maxPercent)}%` }}
-              />
-            </div>
-            <div className="matchup-percent">
-              {m.result.minPercent}% – {m.result.maxPercent}%
-              {m.result.maxPercent >= 100 && <span className="matchup-ko-tag"> KO possible</span>}
-            </div>
+      <div className="matchups-columns">
+        <div className="matchups-column">
+          <h4 className="matchups-column-title matchups-column-p1">{p1Name} attaque</h4>
+          <div className="matchups-grid">
+            {p1Attacks.map((m, i) => (
+              <MatchupCard key={i} matchup={m} />
+            ))}
           </div>
-        ))}
+        </div>
+        <div className="matchups-column">
+          <h4 className="matchups-column-title matchups-column-p2">{p2Name} attaque</h4>
+          <div className="matchups-grid">
+            {p2Attacks.map((m, i) => (
+              <MatchupCard key={i} matchup={m} />
+            ))}
+          </div>
+        </div>
       </div>
       {uniqueUnsupportedNames.length > 0 && (
         <p className="matchups-unsupported-note">
           Non calculable (hors dex Champions actuelle) : {uniqueUnsupportedNames.join(' · ')}
         </p>
       )}
+    </div>
+  );
+}
+
+function MatchupCard({ matchup }: { matchup: MatchupEntry & { status: 'ok' } }) {
+  return (
+    <div className="matchup-card">
+      <div className="matchup-header">
+        <span className="matchup-attacker">{matchup.attackerLabel}</span>
+        <span className="matchup-move">{matchup.moveName}</span>
+        <span className="matchup-arrow">→</span>
+        <span className="matchup-defender">{matchup.defenderLabel}</span>
+      </div>
+      <div className="matchup-bar-track">
+        <div
+          className="matchup-bar-fill"
+          style={{ width: `${Math.min(100, matchup.result.maxPercent)}%` }}
+        />
+      </div>
+      <div className="matchup-percent">
+        {matchup.result.minPercent}% – {matchup.result.maxPercent}%
+        {matchup.result.maxPercent >= 100 && <span className="matchup-ko-tag"> KO possible</span>}
+      </div>
     </div>
   );
 }
@@ -548,6 +578,8 @@ function PositionAnalysisCard({
   function handleAnalyze() {
     if (!pokemon) return;
     setState({ status: 'loading' });
+    // Calcul synchrone mais potentiellement coûteux (~100-300ms en doubles) :
+    // on le différe d'une frame pour laisser l'UI afficher le spinner avant de bloquer.
     requestAnimationFrame(() => {
       try {
         const scores = analyzeActionsForPosition(battle, position, null);
@@ -582,7 +614,13 @@ function PositionAnalysisCard({
 
       {state.status === 'error' && <p className="position-analysis-error">{state.message}</p>}
 
-      {state.status === 'done' && (
+      {state.status === 'done' && state.scores.length === 0 && (
+        <p className="position-analysis-empty">
+          Aucune action calculable : pas encore de move révélé pour ce Pokémon à ce tour.
+        </p>
+      )}
+
+      {state.status === 'done' && state.scores.length > 0 && (
         <div className="action-ranking">
           {state.scores.map((score, i) => (
             <div
@@ -601,6 +639,86 @@ function PositionAnalysisCard({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Une action observée dans le replay pour ce tour, dans l'ordre chronologique réel. */
+interface ObservedAction {
+  side: 'p1' | 'p2';
+  pokemonLabel: string;
+  text: string;
+}
+
+/**
+ * Extrait, dans l'ordre chronologique, les actions clés d'un tour (moves
+ * joués, switches, K.O.) directement depuis les lignes brutes du replay —
+ * c'est la trace RÉELLE de ce qui s'est passé, pas une simulation.
+ */
+function extractObservedActions(parsedReplay: ParsedReplayLog, turnNumber: number): ObservedAction[] {
+  const turnLines = parsedReplay.turns[turnNumber] ?? [];
+  const actions: ObservedAction[] = [];
+
+  for (const line of turnLines) {
+    if (line.type === 'move') {
+      const [identRaw, moveName, targetRaw] = line.args;
+      const ident = parsePokemonIdent(identRaw);
+      const side = ident.side as 'p1' | 'p2';
+      if (side !== 'p1' && side !== 'p2') continue;
+      const targetIdent = targetRaw ? parsePokemonIdent(targetRaw) : null;
+      actions.push({
+        side,
+        pokemonLabel: ident.name,
+        text: targetIdent ? `${moveName} → ${targetIdent.name}` : moveName,
+      });
+    } else if (line.type === 'switch' || line.type === 'drag') {
+      const [identRaw] = line.args;
+      const ident = parsePokemonIdent(identRaw);
+      const side = ident.side as 'p1' | 'p2';
+      if (side !== 'p1' && side !== 'p2') continue;
+      actions.push({ side, pokemonLabel: ident.name, text: 'entre sur le terrain' });
+    } else if (line.type === 'faint') {
+      const [identRaw] = line.args;
+      const ident = parsePokemonIdent(identRaw);
+      const side = ident.side as 'p1' | 'p2';
+      if (side !== 'p1' && side !== 'p2') continue;
+      actions.push({ side, pokemonLabel: ident.name, text: 'K.O.' });
+    }
+  }
+
+  return actions;
+}
+
+function TurnActionsLog({
+  parsedReplay,
+  turnNumber,
+  battle,
+}: {
+  parsedReplay: ParsedReplayLog;
+  turnNumber: number;
+  battle: BattleState;
+}) {
+  const actions = useMemo(
+    () => extractObservedActions(parsedReplay, turnNumber),
+    [parsedReplay, turnNumber],
+  );
+
+  if (actions.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="turn-actions-log">
+      <h3>Déroulé du tour (ordre réel)</h3>
+      <ol className="turn-actions-list">
+        {actions.map((a, i) => (
+          <li key={i} className={`turn-action-item turn-action-${a.side}`}>
+            <span className="turn-action-side-tag">{a.side === 'p1' ? 'P1' : 'P2'}</span>
+            <span className="turn-action-pokemon">{a.pokemonLabel}</span>
+            <span className="turn-action-text">{a.text}</span>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
