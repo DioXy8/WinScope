@@ -116,6 +116,13 @@ body {
   text-align: right;
 }
 
+.win-compute-progress {
+  font-size: 0.72rem;
+  color: #888;
+  margin: 0;
+  font-style: italic;
+}
+
 .winbar-container {
   background: #161922;
   border: 1px solid #2a2e3a;
