@@ -34,6 +34,12 @@ export interface PokemonDetails {
   teraType: string | null;
   /** true si la forme n'est pas connue (Team Preview, ex: "Arceus-*") */
   formeUnknown: boolean;
+  /** true si la chaîne DETAILS indiquait une forme Mega (ex: "Swampert-Mega"). */
+  isMegaForme: boolean;
+  /** Espèce de base si isMegaForme est true (ex: "Swampert" pour "Swampert-Mega"), sinon null. */
+  baseSpeciesIfMega: string | null;
+  /** "X" ou "Y" pour les Mega à variante (Charizard, Mewtwo...), sinon null. */
+  megaVariant: 'X' | 'Y' | null;
 }
 
 export type StatusCondition = 'slp' | 'par' | 'frz' | 'brn' | 'psn' | 'tox' | '';
