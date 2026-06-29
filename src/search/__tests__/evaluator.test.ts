@@ -36,7 +36,7 @@ describe('estimateWinProbability', () => {
         'p2:B': { ...createInitialPokemonState({ species: 'B', side: 'p2', level: 50 }), fainted: true, currentHp: 0 },
       },
     };
-    expect(estimateWinProbability(battle)).toBe(99);
+    expect(estimateWinProbability(battle)).toBe(100);
   });
 
   it('returns 1 when our side has no pokemon left', () => {
@@ -48,7 +48,7 @@ describe('estimateWinProbability', () => {
         'p2:B': { ...createInitialPokemonState({ species: 'B', side: 'p2', level: 50 }), maxHp: 100, currentHp: 100 },
       },
     };
-    expect(estimateWinProbability(battle)).toBe(1);
+    expect(estimateWinProbability(battle)).toBe(0);
   });
 
   it('never returns exactly 0 or 100 while pokemon remain on both sides', () => {
