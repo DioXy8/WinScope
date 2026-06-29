@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialBattleState, createInitialPokemonState } from '../../engine/state';
-import { analyzeActionsForPosition, compareActualActionToAlternatives } from '../turnAnalyzer';
+import { analyzeActionsForPosition, compareActualActionToAlternatives, getBestWinExpectancyForSide } from '../turnAnalyzer';
 import type { BattleState } from '../../engine/state';
 import type { MoveAction } from '../actionTypes';
 
@@ -67,6 +67,48 @@ describe('analyzeActionsForPosition', () => {
     for (const s of scores) {
       expect(s.opponentResponsesConsidered).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('getBestWinExpectancyForSide', () => {
+  it('returns a single-position score when only one pokemon is active', () => {
+    let battle = setupLethalScenario();
+    battle = {
+      ...battle,
+      activeByPosition: { p1a: 'p1:Garchomp', p2a: 'p2:Incineroar' },
+    };
+    const result = getBestWinExpectancyForSide(battle, 'p1');
+    expect(result).not.toBeNull();
+    expect(result).toBeGreaterThan(50); // Earthquake OHKO dispo
+  });
+
+  it('returns null if the side has no active pokemon at all', () => {
+    const battle = createInitialBattleState();
+    const result = getBestWinExpectancyForSide(battle, 'p1');
+    expect(result).toBeNull();
+  });
+
+  it('falls back to the heuristic estimate when no revealed moves are available', () => {
+    let battle = createInitialBattleState();
+    const klefki = {
+      ...createInitialPokemonState({ species: 'Klefki', side: 'p1', level: 50 }),
+      position: 'p1a' as const,
+      revealedMoves: [],
+    };
+    const opponent = {
+      ...createInitialPokemonState({ species: 'Incineroar', side: 'p2', level: 50 }),
+      position: 'p2a' as const,
+      revealedMoves: [],
+    };
+    battle = {
+      ...battle,
+      pokemonByKey: { 'p1:Klefki': klefki, 'p2:Incineroar': opponent },
+      activeByPosition: { p1a: 'p1:Klefki', p2a: 'p2:Incineroar' },
+    };
+    // Aucun move révélé pour ce seul actif -> analyzeActionsForPosition retourne [] -> null
+    // (c'est à l'appelant, ici l'UI, de retomber sur l'heuristique brute dans ce cas).
+    const result = getBestWinExpectancyForSide(battle, 'p1');
+    expect(result).toBeNull();
   });
 });
 
