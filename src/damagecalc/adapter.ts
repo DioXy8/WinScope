@@ -35,7 +35,8 @@ export class DexLookupError extends Error {
   constructor(
     message: string,
     public readonly kind: 'pokemon-not-found' | 'move-not-found',
-    public readonly name: string,
+    /** Le nom du Pokémon ou move qui n'a pas été trouvé dans la dex. */
+    public readonly entityName: string,
   ) {
     super(message);
     this.name = 'DexLookupError';
