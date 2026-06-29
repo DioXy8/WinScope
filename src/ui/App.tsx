@@ -485,7 +485,7 @@ function computeMatchups(battle: BattleState): MatchupEntry[] {
           } catch (err) {
             const message =
               err instanceof DexLookupError
-                ? `"${err.name}" hors dex Champions`
+                ? `"${err.entityName}" hors dex Champions`
                 : `Erreur de calcul (${(err as Error).message})`;
             entries.push({ status: 'unsupported', attackerSide, attackerLabel, defenderLabel, moveName, message });
           }
@@ -576,14 +576,19 @@ type AnalysisState =
   | { status: 'error'; message: string }
   | { status: 'done'; scores: ActionScore[] };
 
-function describeActionShort(action: PlayerAction): string {
+function describeActionShort(action: PlayerAction, battle: BattleState): string {
   if (action.kind === 'switch') {
     return `Switch (${action.incomingKey.split(':')[1] ?? action.incomingKey})`;
   }
   if (action.targetPositions.length === 0) {
     return action.moveName;
   }
-  return `${action.moveName} → ${action.targetPositions.join(', ')}`;
+  const targetLabels = action.targetPositions.map((pos) => {
+    const key = battle.activeByPosition[pos];
+    const pokemon = key ? battle.pokemonByKey[key] : null;
+    return pokemon ? pokemon.nickname || pokemon.species : pos;
+  });
+  return `${action.moveName} → ${targetLabels.join(', ')}`;
 }
 
 function TurnAnalysisPanel({
@@ -697,7 +702,7 @@ function PositionAnalysisCard({
               key={i}
               className={`action-ranking-row ${best && score === best ? 'action-ranking-best' : ''}`}
             >
-              <span className="action-ranking-name">{describeActionShort(score.action)}</span>
+              <span className="action-ranking-name">{describeActionShort(score.action, battle)}</span>
               <div className="action-ranking-bar-track">
                 <div
                   className="action-ranking-bar-fill"
