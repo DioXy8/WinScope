@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { fetchReplay, ReplayFetchError } from '../replay/fetcher';
 import { parsePokemonIdent, parseReplayLog } from '../replay/logParser';
 import type { ParsedReplayLog } from '../replay/types';
@@ -8,7 +8,7 @@ import { estimateWinProbability } from '../search/evaluator';
 import { calculateDamage, DexLookupError } from '../damagecalc/damageCalc';
 import type { DamageCalcResult } from '../damagecalc/damageCalc';
 import { isOffensiveMove } from '../damagecalc/adapter';
-import { analyzeActionsForPosition } from '../search/turnAnalyzer';
+import { analyzeActionsForPosition, getBestWinExpectancyForSide } from '../search/turnAnalyzer';
 import type { ActionScore } from '../search/turnAnalyzer';
 import type { PlayerAction } from '../search/actionTypes';
 import type { PokemonPosition } from '../replay/types';
@@ -108,8 +108,48 @@ function BattleExplorer({
 }) {
   const current = states[turnIndex];
 
-  const winProbabilities = useMemo(() => states.map((s) => estimateWinProbability(s)), [states]);
+  const fallbackProbabilities = useMemo(() => states.map((s) => estimateWinProbability(s)), [states]);
+  const [computedProbabilities, setComputedProbabilities] = useState<(number | null)[]>(() =>
+    states.map(() => null),
+  );
+  const [computeProgress, setComputeProgress] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setComputedProbabilities(states.map(() => null));
+    setComputeProgress(0);
+
+    async function computeAll() {
+      for (let i = 0; i < states.length; i++) {
+        if (cancelled) return;
+        // requestAnimationFrame entre chaque tour pour laisser React re-render
+        // la progression plutôt que de bloquer le thread pendant tout le calcul.
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        if (cancelled) return;
+        const best = getBestWinExpectancyForSide(states[i], 'p1');
+        const value = best ?? fallbackProbabilities[i];
+        setComputedProbabilities((prev) => {
+          const next = [...prev];
+          next[i] = value;
+          return next;
+        });
+        setComputeProgress(i + 1);
+      }
+    }
+
+    computeAll();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [states]);
+
+  const winProbabilities = useMemo(
+    () => computedProbabilities.map((v, i) => v ?? fallbackProbabilities[i]),
+    [computedProbabilities, fallbackProbabilities],
+  );
   const currentWinP1 = winProbabilities[turnIndex];
+  const isStillComputing = computeProgress < states.length;
 
   const p1Active = useMemo(() => getActivePokemon(current, 'p1'), [current]);
   const p2Active = useMemo(() => getActivePokemon(current, 'p2'), [current]);
@@ -147,6 +187,12 @@ function BattleExplorer({
       </div>
 
       <TurnActionsLog parsedReplay={parsedReplay} turnNumber={current.turnNumber} battle={current} />
+
+      {isStillComputing && (
+        <p className="win-compute-progress">
+          Calcul de l'analyse en cours… ({computeProgress}/{states.length} tours)
+        </p>
+      )}
 
       <WinBar p1Name={p1Name} p2Name={p2Name} p1Percent={currentWinP1} />
 
