@@ -25,6 +25,7 @@ import {
 import type { ParsedReplayLog, PokemonPosition, StatId, TurnLine } from '../replay/types';
 import {
   addSpikes,
+  clearHazards,
   markTerastallizeUsed,
   setAuroraVeil,
   setGravity,
@@ -125,7 +126,6 @@ function clearActivePosition(battle: BattleState, key: string): BattleState {
   const { [position]: _removed, ...rest } = battle.activeByPosition;
   return { ...battle, activeByPosition: rest };
 }
-
 function updatePokemon(
   battle: BattleState,
   key: string,
@@ -159,7 +159,10 @@ const TERRAIN_NAMES: Record<string, 'electric' | 'grassy' | 'misty' | 'psychic'>
   'Psychic Terrain': 'psychic',
 };
 
-const WEATHER_NAMES: Record<string, 'sun' | 'rain' | 'sand' | 'snow' | 'harshsun' | 'heavyrain'> = {
+const WEATHER_NAMES: Record<
+  string,
+  'sun' | 'rain' | 'sand' | 'snow' | 'harshsun' | 'heavyrain'
+> = {
   SunnyDay: 'sun',
   RainDance: 'rain',
   Sandstorm: 'sand',
@@ -218,8 +221,12 @@ export function applyLine(battle: BattleState, line: TurnLine): BattleState {
       const details = parsePokemonDetails(detailsRaw);
       const hpStatus = parseHpStatus(hpRaw ?? '');
       const side = ident.side as 'p1' | 'p2';
-      if ((side !== 'p1' && side !== 'p2') || !ident.position) return battle;
+      if (side !== 'p1' && side !== 'p2' || !ident.position) return battle;
 
+      // `details.species` est déjà l'espèce de BASE (le suffixe "-Mega"
+      // éventuel a été normalisé par parsePokemonDetails), donc la clé
+      // reste stable même si ce Pokémon switch-in déjà Mega-évolué un
+      // tour précédent (le |-mega| d'origine n'est émis qu'une seule fois).
       const key = pokemonKey(side, details.species);
 
       // Le Pokémon qui occupait cette position avant doit être "libéré"
@@ -247,6 +254,15 @@ export function applyLine(battle: BattleState, line: TurnLine): BattleState {
       pokemon = setHp(pokemon, hpStatus.hp, hpStatus.maxHp, hpStatus.isPercentage);
       if (details.teraType) {
         pokemon = setTerastallized(pokemon, details.teraType);
+      }
+      // Restaure l'état Mega si les DETAILS l'indiquent mais qu'on ne
+      // l'avait pas encore (cas: replay commençant après la Mega
+      // Evolution, ou |-mega| jamais vu pour une raison quelconque).
+      if (details.isMegaForme && !pokemon.isMegaEvolved) {
+        const megaForme = details.megaVariant
+          ? `Mega ${details.species} ${details.megaVariant}`
+          : `Mega ${details.species}`;
+        pokemon = { ...pokemon, isMegaEvolved: true, megaForme };
       }
 
       return {
