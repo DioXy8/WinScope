@@ -75,6 +75,9 @@ describe('parsePokemonDetails', () => {
       shiny: false,
       teraType: null,
       formeUnknown: false,
+      isMegaForme: false,
+      baseSpeciesIfMega: null,
+      megaVariant: null,
     });
   });
 
@@ -86,6 +89,9 @@ describe('parsePokemonDetails', () => {
       shiny: true,
       teraType: null,
       formeUnknown: false,
+      isMegaForme: false,
+      baseSpeciesIfMega: null,
+      megaVariant: null,
     });
   });
 
@@ -98,6 +104,27 @@ describe('parsePokemonDetails', () => {
     const result = parsePokemonDetails('Arceus-*');
     expect(result.formeUnknown).toBe(true);
     expect(result.species).toBe('Arceus');
+  });
+
+  it('normalizes a Showdown-style Mega forme name to the base species', () => {
+    const result = parsePokemonDetails('Swampert-Mega, M');
+    expect(result.species).toBe('Swampert');
+    expect(result.isMegaForme).toBe(true);
+    expect(result.baseSpeciesIfMega).toBe('Swampert');
+    expect(result.megaVariant).toBeNull();
+  });
+
+  it('extracts the X/Y variant for dual-Mega species', () => {
+    const result = parsePokemonDetails('Charizard-Mega-X, M');
+    expect(result.species).toBe('Charizard');
+    expect(result.isMegaForme).toBe(true);
+    expect(result.megaVariant).toBe('X');
+  });
+
+  it('does not mistake a non-Mega alternate forme for a Mega forme', () => {
+    const result = parsePokemonDetails('Deoxys-Speed');
+    expect(result.isMegaForme).toBe(false);
+    expect(result.baseSpeciesIfMega).toBeNull();
   });
 });
 
