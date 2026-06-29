@@ -22,11 +22,6 @@
  * exhaustivement explose. On échantillonne donc les réponses adverses
  * (cf. MAX_OPPONENT_RESPONSES) plutôt que de les énumérer en entier — un
  * choix pragmatique documenté plutôt qu'une fausse promesse d'exhaustivité.
- *
- * Limite connue (non bloquante) : le générateur d'actions sous-jacent ne
- * filtre pas les ciblages absurdes (ex: un move offensif "normal" peut
- * cibler son propre allié) — ça pollue légèrement le classement sans
- * casser le calcul. À affiner dans une prochaine itération.
  */
 
 import type { BattleState } from '../engine/state';
@@ -155,4 +150,51 @@ export function compareActualActionToAlternatives(
   const actualActionScore = ranking.find((s) => actionsAreEquivalent(s.action, actualAction)) ?? null;
 
   return { ranking, actualActionScore, bestScore };
+}
+
+/**
+ * Calcule la meilleure espérance de victoire globale pour un camp à ce
+ * tour, en tenant compte de SES DEUX Pokémon actifs conjointement (pas un
+ * seul isolé avec l'autre ignoré) : on analyse le premier Pokémon en
+ * laissant le second libre (pas d'allié fixé), on retient sa meilleure
+ * action, puis on analyse le second EN FIXANT cette meilleure action du
+ * premier comme contexte — une approximation simple de l'optimum joint
+ * (pas un vrai algorithme minimax sur la paire complète, qui doublerait le
+ * coût de calcul pour un gain marginal sur la plupart des tours).
+ *
+ * Retourne null si le camp n'a aucun Pokémon actif avec au moins un move
+ * révélé (cas où aucune analyse n'est possible) — l'appelant doit alors
+ * retomber sur l'heuristique de position brute (estimateWinProbability).
+ */
+export function getBestWinExpectancyForSide(battle: BattleState, side: 'p1' | 'p2'): number | null {
+  const positions = (Object.keys(battle.activeByPosition) as PokemonPosition[]).filter((p) =>
+    p.startsWith(side),
+  );
+  if (positions.length === 0) return null;
+
+  if (positions.length === 1) {
+    const scores = analyzeActionsForPosition(battle, positions[0], null);
+    return scores[0]?.winExpectancy ?? null;
+  }
+
+  const [firstPosition, secondPosition] = positions;
+  const firstScores = analyzeActionsForPosition(battle, firstPosition, null);
+  if (firstScores.length === 0) {
+    // Le premier Pokémon n'a rien de jouable connu : on analyse le second seul.
+    const secondScores = analyzeActionsForPosition(battle, secondPosition, null);
+    return secondScores[0]?.winExpectancy ?? null;
+  }
+
+  const bestFirstAction = firstScores[0].action;
+  const secondScores = analyzeActionsForPosition(battle, secondPosition, bestFirstAction);
+
+  if (secondScores.length === 0) {
+    // Le second Pokémon n'a rien de jouable connu : le score du premier seul est notre meilleure estimation.
+    return firstScores[0].winExpectancy;
+  }
+
+  // Le score le plus représentatif du tour combiné est celui calculé pour
+  // le second Pokémon (qui intègre déjà l'action fixée du premier dans sa
+  // simulation) — c'est notre meilleure approximation de l'optimum joint.
+  return secondScores[0].winExpectancy;
 }
