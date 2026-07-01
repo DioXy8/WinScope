@@ -70,6 +70,75 @@ body {
   margin-top: 16px;
 }
 
+.warning-box {
+  background: #3a301d;
+  border: 1px solid #7a6430;
+  color: #ffdf9e;
+  padding: 14px;
+  border-radius: 8px;
+  margin-top: 16px;
+}
+
+.pokepaste-section {
+  margin-top: 24px;
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px solid #2a2d35;
+  background: #15171d;
+}
+
+.pokepaste-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pokepaste-title {
+  font-size: 1.05rem;
+  margin: 0;
+  color: #f0f0f0;
+}
+
+.pokepaste-status-ok {
+  font-size: 0.85rem;
+  color: #8ee68e;
+  background: #1d3a22;
+  border: 1px solid #306a34;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.pokepaste-status-error {
+  font-size: 0.85rem;
+  color: #ffb4b4;
+  background: #3a1d1d;
+  border: 1px solid #7a3030;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.pokepaste-hint {
+  color: #999;
+  font-size: 0.85rem;
+  margin: 8px 0 12px;
+}
+
+.pokepaste-textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #333;
+  background: #1a1d24;
+  color: #fff;
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
 .explorer {
   margin-top: 24px;
   display: flex;
