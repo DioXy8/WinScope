@@ -12,19 +12,65 @@ import { analyzeActionsForPosition, getBestWinExpectancyForSide } from '../searc
 import type { ActionScore } from '../search/turnAnalyzer';
 import type { PlayerAction } from '../search/actionTypes';
 import type { PokemonPosition } from '../replay/types';
+import { parsePokePaste } from '../sets/pokepasteParser';
+import { applyUserPokePasteToStates } from '../sets/applyUserSets';
 
 type LoadState =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'success'; states: BattleState[]; parsedReplay: ParsedReplayLog; p1Name: string; p2Name: string };
+  | {
+      status: 'success';
+      states: BattleState[];
+      parsedReplay: ParsedReplayLog;
+      p1Name: string;
+      p2Name: string;
+      /** Côté identifié comme celui de l'utilisateur d'après son PokéPaste, si trouvé. */
+      userSide: 'p1' | 'p2' | null;
+    };
+
+/**
+ * Clé localStorage pour le PokéPaste permanent de l'utilisateur. C'est du
+ * texte brut collé une seule fois, réutilisé pour toutes les analyses
+ * futures (cf. décision d'architecture : "avant de mettre un replay on met
+ * un pokepaste", à la Alakastats/VS Recorder).
+ */
+const POKEPASTE_STORAGE_KEY = 'winscope_user_pokepaste';
 
 export default function App() {
   const [url, setUrl] = useState('');
+  const [pokePasteText, setPokePasteText] = useState(() => {
+    try {
+      return localStorage.getItem(POKEPASTE_STORAGE_KEY) ?? '';
+    } catch {
+      return '';
+    }
+  });
   const [state, setState] = useState<LoadState>({ status: 'idle' });
   const [turnIndex, setTurnIndex] = useState(0);
 
+  const parsedPokePaste = useMemo(() => parsePokePaste(pokePasteText), [pokePasteText]);
+
+  function handlePokePasteChange(value: string) {
+    setPokePasteText(value);
+    try {
+      localStorage.setItem(POKEPASTE_STORAGE_KEY, value);
+    } catch {
+      // localStorage indisponible (navigation privée...) : on continue sans
+      // persistance plutôt que de bloquer l'utilisateur.
+    }
+  }
+
   async function handleAnalyze() {
+    if (parsedPokePaste.length === 0) {
+      setState({
+        status: 'error',
+        message:
+          'Colle d’abord ton PokéPaste (les 6 sets de ton équipe) avant d’analyser un replay — ' +
+          'c’est ce qui permet des calculs de dégâts exacts sur ton équipe.',
+      });
+      return;
+    }
     if (!url.trim()) {
       setState({ status: 'error', message: 'Colle une URL de replay Showdown avant de lancer l’analyse.' });
       return;
@@ -33,10 +79,11 @@ export default function App() {
     try {
       const raw = await fetchReplay(url);
       const parsed = parseReplayLog(raw.log);
-      const states = replayToStates(parsed);
+      const rawStates = replayToStates(parsed);
+      const { states, match } = applyUserPokePasteToStates(rawStates, parsedPokePaste);
       const p1Name = parsed.players.find((p) => p.side === 'p1')?.username ?? 'Joueur 1';
       const p2Name = parsed.players.find((p) => p.side === 'p2')?.username ?? 'Joueur 2';
-      setState({ status: 'success', states, parsedReplay: parsed, p1Name, p2Name });
+      setState({ status: 'success', states, parsedReplay: parsed, p1Name, p2Name, userSide: match.side });
       setTurnIndex(0);
     } catch (err) {
       const message =
@@ -53,6 +100,12 @@ export default function App() {
         <h1>WinScope</h1>
         <p className="subtitle">Analyseur de replays Pokémon VGC / Champions</p>
       </header>
+
+      <PokePasteSection
+        value={pokePasteText}
+        onChange={handlePokePasteChange}
+        parsedCount={parsedPokePaste.length}
+      />
 
       <section className="input-section">
         <input
@@ -77,6 +130,13 @@ export default function App() {
         </div>
       )}
 
+      {state.status === 'success' && state.userSide === null && (
+        <div className="warning-box">
+          Ton PokéPaste ne correspond à aucun des deux camps de ce replay (pas assez d'espèces en
+          commun) — les calculs de dégâts utiliseront des stats par défaut plutôt que ton set exact.
+        </div>
+      )}
+
       {state.status === 'success' && (
         <BattleExplorer
           states={state.states}
@@ -88,6 +148,51 @@ export default function App() {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Champ PokéPaste permanent, affiché avant l'URL du replay. Persisté en
+ * localStorage : l'utilisateur ne devrait avoir à le coller qu'une seule
+ * fois pour toutes ses analyses futures (tant que son équipe ne change pas).
+ */
+function PokePasteSection({
+  value,
+  onChange,
+  parsedCount,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  parsedCount: number;
+}) {
+  const isEmpty = value.trim().length === 0;
+
+  return (
+    <section className="pokepaste-section">
+      <div className="pokepaste-header">
+        <h2 className="pokepaste-title">Ton équipe (PokéPaste)</h2>
+        {!isEmpty && (
+          <span className={parsedCount > 0 ? 'pokepaste-status-ok' : 'pokepaste-status-error'}>
+            {parsedCount > 0
+              ? `${parsedCount} Pokémon détecté${parsedCount > 1 ? 's' : ''}`
+              : 'Format non reconnu'}
+          </span>
+        )}
+      </div>
+      <p className="pokepaste-hint">
+        Colle ici le PokéPaste complet de ton équipe (export Showdown standard). Il est enregistré
+        automatiquement et réutilisé pour toutes tes analyses — les calculs de dégâts sur ton camp
+        utiliseront tes vraies EVs/IVs/nature/objet/talent au lieu d'estimations.
+      </p>
+      <textarea
+        className="pokepaste-textarea"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={'Delphox-Mega @ Delphoxite\nAbility: Levitate\nLevel: 50\nEVs: 11 HP / 5 Def / 18 SpA / 32 Spe\nTimid Nature\n- Heat Wave\n...'}
+        rows={8}
+        spellCheck={false}
+      />
+    </section>
   );
 }
 
