@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { MouseEvent } from 'react';
 import { fetchReplay, ReplayFetchError } from '../replay/fetcher';
 import { parsePokemonIdent, parseReplayLog } from '../replay/logParser';
 import type { ParsedReplayLog } from '../replay/types';
@@ -14,6 +15,15 @@ import type { PlayerAction } from '../search/actionTypes';
 import type { PokemonPosition } from '../replay/types';
 import { parsePokePaste } from '../sets/pokepasteParser';
 import { applyUserPokePasteToStates } from '../sets/applyUserSets';
+import type { SavedTeam } from '../sets/teamStorage';
+import {
+  createTeam,
+  deleteTeam,
+  loadActiveTeamId,
+  loadTeams,
+  setActiveTeamId as persistActiveTeamId,
+  updateTeam,
+} from '../sets/teamStorage';
 
 type LoadState =
   | { status: 'idle' }
@@ -29,45 +39,73 @@ type LoadState =
       userSide: 'p1' | 'p2' | null;
     };
 
-/**
- * Clé localStorage pour le PokéPaste permanent de l'utilisateur. C'est du
- * texte brut collé une seule fois, réutilisé pour toutes les analyses
- * futures (cf. décision d'architecture : "avant de mettre un replay on met
- * un pokepaste", à la Alakastats/VS Recorder).
- */
-const POKEPASTE_STORAGE_KEY = 'winscope_user_pokepaste';
+/** Écran affiché : liste des équipes, formulaire d'ajout/édition, ou analyse de replay. */
+type Screen = { name: 'teams' } | { name: 'team-editor'; editingTeamId: string | null } | { name: 'analyze' };
 
 export default function App() {
-  const [url, setUrl] = useState('');
-  const [pokePasteText, setPokePasteText] = useState(() => {
-    try {
-      return localStorage.getItem(POKEPASTE_STORAGE_KEY) ?? '';
-    } catch {
-      return '';
-    }
+  const [teams, setTeams] = useState<SavedTeam[]>(() => loadTeams());
+  const [activeTeamId, setActiveTeamId] = useState<string | null>(() => loadActiveTeamId());
+  const [screen, setScreen] = useState<Screen>(() => {
+    const savedActiveId = loadActiveTeamId();
+    const hasActiveTeam = savedActiveId !== null && loadTeams().some((t) => t.id === savedActiveId);
+    return hasActiveTeam ? { name: 'analyze' } : { name: 'teams' };
   });
+
+  const [url, setUrl] = useState('');
   const [state, setState] = useState<LoadState>({ status: 'idle' });
   const [turnIndex, setTurnIndex] = useState(0);
 
-  const parsedPokePaste = useMemo(() => parsePokePaste(pokePasteText), [pokePasteText]);
+  const activeTeam = useMemo(() => teams.find((t) => t.id === activeTeamId) ?? null, [teams, activeTeamId]);
+  const parsedActiveTeam = useMemo(
+    () => (activeTeam ? parsePokePaste(activeTeam.pokepasteText) : []),
+    [activeTeam],
+  );
 
-  function handlePokePasteChange(value: string) {
-    setPokePasteText(value);
-    try {
-      localStorage.setItem(POKEPASTE_STORAGE_KEY, value);
-    } catch {
-      // localStorage indisponible (navigation privée...) : on continue sans
-      // persistance plutôt que de bloquer l'utilisateur.
+  function refreshTeams() {
+    setTeams(loadTeams());
+  }
+
+  function handleSelectTeam(id: string) {
+    persistActiveTeamId(id);
+    setActiveTeamId(id);
+    setScreen({ name: 'analyze' });
+  }
+
+  function handleCreateTeamClick() {
+    setScreen({ name: 'team-editor', editingTeamId: null });
+  }
+
+  function handleEditTeamClick(id: string) {
+    setScreen({ name: 'team-editor', editingTeamId: id });
+  }
+
+  function handleDeleteTeamClick(id: string) {
+    deleteTeam(id);
+    refreshTeams();
+    if (activeTeamId === id) {
+      setActiveTeamId(null);
     }
   }
 
+  function handleSaveTeam(name: string, pokepasteText: string, editingTeamId: string | null) {
+    let savedId: string;
+    if (editingTeamId) {
+      updateTeam(editingTeamId, name, pokepasteText);
+      savedId = editingTeamId;
+    } else {
+      savedId = createTeam(name, pokepasteText).id;
+    }
+    refreshTeams();
+    persistActiveTeamId(savedId);
+    setActiveTeamId(savedId);
+    setScreen({ name: 'analyze' });
+  }
+
   async function handleAnalyze() {
-    if (parsedPokePaste.length === 0) {
+    if (!activeTeam || parsedActiveTeam.length === 0) {
       setState({
         status: 'error',
-        message:
-          'Colle d’abord ton PokéPaste (les 6 sets de ton équipe) avant d’analyser un replay — ' +
-          'c’est ce qui permet des calculs de dégâts exacts sur ton équipe.',
+        message: 'Sélectionne une équipe valide avant d’analyser un replay.',
       });
       return;
     }
@@ -80,7 +118,7 @@ export default function App() {
       const raw = await fetchReplay(url);
       const parsed = parseReplayLog(raw.log);
       const rawStates = replayToStates(parsed);
-      const { states, match } = applyUserPokePasteToStates(rawStates, parsedPokePaste);
+      const { states, match } = applyUserPokePasteToStates(rawStates, parsedActiveTeam);
       const p1Name = parsed.players.find((p) => p.side === 'p1')?.username ?? 'Joueur 1';
       const p2Name = parsed.players.find((p) => p.side === 'p2')?.username ?? 'Joueur 2';
       setState({ status: 'success', states, parsedReplay: parsed, p1Name, p2Name, userSide: match.side });
@@ -101,76 +139,198 @@ export default function App() {
         <p className="subtitle">Analyseur de replays Pokémon VGC / Champions</p>
       </header>
 
-      <PokePasteSection
-        value={pokePasteText}
-        onChange={handlePokePasteChange}
-        parsedCount={parsedPokePaste.length}
-      />
-
-      <section className="input-section">
-        <input
-          type="text"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="Colle l'URL d'un replay Showdown..."
-          className="url-input"
+      {screen.name === 'teams' && (
+        <TeamsScreen
+          teams={teams}
+          onSelectTeam={handleSelectTeam}
+          onCreateTeam={handleCreateTeamClick}
+          onEditTeam={handleEditTeamClick}
+          onDeleteTeam={handleDeleteTeamClick}
         />
-        <button
-          onClick={handleAnalyze}
-          disabled={state.status === 'loading'}
-          className="analyze-button"
-        >
-          {state.status === 'loading' ? 'Chargement...' : 'Analyser'}
-        </button>
-      </section>
-
-      {state.status === 'error' && (
-        <div className="error-box">
-          <strong>Erreur :</strong> {state.message}
-        </div>
       )}
 
-      {state.status === 'success' && state.userSide === null && (
-        <div className="warning-box">
-          Ton PokéPaste ne correspond à aucun des deux camps de ce replay (pas assez d'espèces en
-          commun) — les calculs de dégâts utiliseront des stats par défaut plutôt que ton set exact.
-        </div>
+      {screen.name === 'team-editor' && (
+        <TeamEditorScreen
+          editingTeam={screen.editingTeamId ? teams.find((t) => t.id === screen.editingTeamId) ?? null : null}
+          onSave={(name, pokepasteText) => handleSaveTeam(name, pokepasteText, screen.editingTeamId)}
+          onCancel={() => setScreen({ name: 'teams' })}
+        />
       )}
 
-      {state.status === 'success' && (
-        <BattleExplorer
-          states={state.states}
-          parsedReplay={state.parsedReplay}
-          p1Name={state.p1Name}
-          p2Name={state.p2Name}
-          turnIndex={turnIndex}
-          onTurnChange={setTurnIndex}
-        />
+      {screen.name === 'analyze' && activeTeam && (
+        <>
+          <ActiveTeamBadge team={activeTeam} pokemonCount={parsedActiveTeam.length} onChangeTeam={() => setScreen({ name: 'teams' })} />
+
+          <section className="input-section">
+            <input
+              type="text"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="Colle l'URL d'un replay Showdown..."
+              className="url-input"
+            />
+            <button
+              onClick={handleAnalyze}
+              disabled={state.status === 'loading'}
+              className="analyze-button"
+            >
+              {state.status === 'loading' ? 'Chargement...' : 'Analyser'}
+            </button>
+          </section>
+
+          {state.status === 'error' && (
+            <div className="error-box">
+              <strong>Erreur :</strong> {state.message}
+            </div>
+          )}
+
+          {state.status === 'success' && state.userSide === null && (
+            <div className="warning-box">
+              Ton équipe "{activeTeam.name}" ne correspond à aucun des deux camps de ce replay (pas
+              assez d'espèces en commun) — les calculs de dégâts utiliseront des stats par défaut
+              plutôt que ton set exact.
+            </div>
+          )}
+
+          {state.status === 'success' && (
+            <BattleExplorer
+              states={state.states}
+              parsedReplay={state.parsedReplay}
+              p1Name={state.p1Name}
+              p2Name={state.p2Name}
+              turnIndex={turnIndex}
+              onTurnChange={setTurnIndex}
+            />
+          )}
+        </>
       )}
     </div>
   );
 }
 
 /**
- * Champ PokéPaste permanent, affiché avant l'URL du replay. Persisté en
- * localStorage : l'utilisateur ne devrait avoir à le coller qu'une seule
- * fois pour toutes ses analyses futures (tant que son équipe ne change pas).
+ * Écran d'accueil façon Alakastats : liste des équipes enregistrées sous
+ * forme de cartes, avec leurs Pokémon détectés. Aucune équipe active tant
+ * qu'on n'en a pas choisi une ici — c'est le point d'entrée obligatoire.
  */
-function PokePasteSection({
-  value,
-  onChange,
-  parsedCount,
+function TeamsScreen({
+  teams,
+  onSelectTeam,
+  onCreateTeam,
+  onEditTeam,
+  onDeleteTeam,
 }: {
-  value: string;
-  onChange: (value: string) => void;
-  parsedCount: number;
+  teams: SavedTeam[];
+  onSelectTeam: (id: string) => void;
+  onCreateTeam: () => void;
+  onEditTeam: (id: string) => void;
+  onDeleteTeam: (id: string) => void;
 }) {
-  const isEmpty = value.trim().length === 0;
+  return (
+    <section className="teams-screen">
+      <div className="teams-screen-header">
+        <h2 className="teams-screen-title">Mes équipes</h2>
+        <button className="analyze-button" onClick={onCreateTeam}>
+          + Nouvelle équipe
+        </button>
+      </div>
+
+      {teams.length === 0 ? (
+        <p className="teams-empty-hint">
+          Aucune équipe enregistrée pour l'instant. Ajoute ton PokéPaste pour commencer — il sera
+          réutilisé pour toutes tes analyses futures, sans avoir à le recoller.
+        </p>
+      ) : (
+        <div className="teams-grid">
+          {teams.map((team) => (
+            <TeamCard
+              key={team.id}
+              team={team}
+              onSelect={() => onSelectTeam(team.id)}
+              onEdit={() => onEditTeam(team.id)}
+              onDelete={() => onDeleteTeam(team.id)}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function TeamCard({
+  team,
+  onSelect,
+  onEdit,
+  onDelete,
+}: {
+  team: SavedTeam;
+  onSelect: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const species = useMemo(() => parsePokePaste(team.pokepasteText).map((p) => p.species), [team.pokepasteText]);
+
+  function handleDeleteClick(e: MouseEvent) {
+    e.stopPropagation();
+    if (window.confirm(`Supprimer l'équipe "${team.name}" ?`)) {
+      onDelete();
+    }
+  }
+
+  function handleEditClick(e: MouseEvent) {
+    e.stopPropagation();
+    onEdit();
+  }
+
+  return (
+    <div className="team-card" onClick={onSelect} role="button" tabIndex={0}>
+      <div className="team-card-header">
+        <h3 className="team-card-name">{team.name}</h3>
+        <div className="team-card-actions">
+          <button className="team-card-icon-btn" onClick={handleEditClick} title="Modifier">
+            ✎
+          </button>
+          <button className="team-card-icon-btn" onClick={handleDeleteClick} title="Supprimer">
+            ✕
+          </button>
+        </div>
+      </div>
+      {species.length > 0 ? (
+        <ul className="team-card-species-list">
+          {species.map((s, i) => (
+            <li key={i} className="team-card-species-item">
+              {s}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="team-card-empty">PokéPaste vide ou non reconnu</p>
+      )}
+    </div>
+  );
+}
+
+/** Formulaire de création/édition d'une équipe : nom + PokéPaste. */
+function TeamEditorScreen({
+  editingTeam,
+  onSave,
+  onCancel,
+}: {
+  editingTeam: SavedTeam | null;
+  onSave: (name: string, pokepasteText: string) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(editingTeam?.name ?? '');
+  const [pokepasteText, setPokepasteText] = useState(editingTeam?.pokepasteText ?? '');
+
+  const parsedCount = useMemo(() => parsePokePaste(pokepasteText).length, [pokepasteText]);
+  const isEmpty = pokepasteText.trim().length === 0;
+  const canSave = name.trim().length > 0 && parsedCount > 0;
 
   return (
     <section className="pokepaste-section">
       <div className="pokepaste-header">
-        <h2 className="pokepaste-title">Ton équipe (PokéPaste)</h2>
+        <h2 className="pokepaste-title">{editingTeam ? 'Modifier l’équipe' : 'Nouvelle équipe'}</h2>
         {!isEmpty && (
           <span className={parsedCount > 0 ? 'pokepaste-status-ok' : 'pokepaste-status-error'}>
             {parsedCount > 0
@@ -179,20 +339,60 @@ function PokePasteSection({
           </span>
         )}
       </div>
+
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Nom de l'équipe (ex: Champions Reg M-B)"
+        className="url-input team-name-input"
+      />
+
       <p className="pokepaste-hint">
-        Colle ici le PokéPaste complet de ton équipe (export Showdown standard). Il est enregistré
-        automatiquement et réutilisé pour toutes tes analyses — les calculs de dégâts sur ton camp
-        utiliseront tes vraies EVs/IVs/nature/objet/talent au lieu d'estimations.
+        Colle ici le PokéPaste complet de ton équipe (export Showdown standard). Les calculs de
+        dégâts sur cette équipe utiliseront tes vraies EVs/IVs/nature/objet/talent au lieu
+        d'estimations.
       </p>
       <textarea
         className="pokepaste-textarea"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={pokepasteText}
+        onChange={(e) => setPokepasteText(e.target.value)}
         placeholder={'Delphox-Mega @ Delphoxite\nAbility: Levitate\nLevel: 50\nEVs: 11 HP / 5 Def / 18 SpA / 32 Spe\nTimid Nature\n- Heat Wave\n...'}
-        rows={8}
+        rows={12}
         spellCheck={false}
       />
+
+      <div className="team-editor-actions">
+        <button className="analyze-button" disabled={!canSave} onClick={() => onSave(name.trim(), pokepasteText)}>
+          Enregistrer
+        </button>
+        <button className="team-editor-cancel-btn" onClick={onCancel}>
+          Annuler
+        </button>
+      </div>
     </section>
+  );
+}
+
+/** Bandeau compact affiché sur l'écran d'analyse, rappelant l'équipe active. */
+function ActiveTeamBadge({
+  team,
+  pokemonCount,
+  onChangeTeam,
+}: {
+  team: SavedTeam;
+  pokemonCount: number;
+  onChangeTeam: () => void;
+}) {
+  return (
+    <div className="active-team-badge">
+      <span className="active-team-label">
+        Équipe active : <strong>{team.name}</strong> ({pokemonCount} Pokémon)
+      </span>
+      <button className="active-team-change-btn" onClick={onChangeTeam}>
+        Changer d'équipe
+      </button>
+    </div>
   );
 }
 
