@@ -8,7 +8,7 @@ import type { BattleState, PokemonState } from '../engine/state';
 import { estimateWinProbability } from '../search/evaluator';
 import { calculateDamage, DexLookupError } from '../damagecalc/damageCalc';
 import type { DamageCalcResult } from '../damagecalc/damageCalc';
-import { isOffensiveMove, getSetConfidence } from '../damagecalc/adapter';
+import { isOffensiveMove, getSetConfidence, getEstimatedMoves } from '../damagecalc/adapter';
 import { analyzeActionsForPosition, getBestWinExpectancyForSide } from '../search/turnAnalyzer';
 import type { ActionScore } from '../search/turnAnalyzer';
 import type { PlayerAction } from '../search/actionTypes';
@@ -797,6 +797,8 @@ type MatchupEntry =
       attackerLabel: string;
       defenderLabel: string;
       moveName: string;
+      /** 'revealed' = déjà vu en combat, 'guessed' = tiré du set de référence NCP deviné, pas encore confirmé. */
+      moveSource: 'revealed' | 'guessed';
       result: DamageCalcResult;
     }
   | {
@@ -805,6 +807,7 @@ type MatchupEntry =
       attackerLabel: string;
       defenderLabel: string;
       moveName: string;
+      moveSource: 'revealed' | 'guessed';
       message: string;
     };
 
@@ -820,22 +823,40 @@ function computeMatchups(battle: BattleState): MatchupEntry[] {
 
   for (const [attackers, defenders, attackerSide] of pairs) {
     for (const attacker of attackers) {
-      if (attacker.fainted || attacker.revealedMoves.length === 0) continue;
+      const revealedSet = new Set(attacker.revealedMoves);
+      // Quand le set de cet attaquant est deviné (set de référence NCP, pas
+      // exact), on propose AUSSI les moves de ce set pas encore vus en
+      // combat — plus utile qu'attendre qu'ils soient joués pour de vrai,
+      // tant que c'est bien indiqué comme non confirmé (moveSource: 'guessed').
+      const estimatedMoves = getEstimatedMoves(attacker).filter((m) => !revealedSet.has(m));
+      const allMoves: { name: string; source: 'revealed' | 'guessed' }[] = [
+        ...attacker.revealedMoves.map((name) => ({ name, source: 'revealed' as const })),
+        ...estimatedMoves.map((name) => ({ name, source: 'guessed' as const })),
+      ];
+      if (attacker.fainted || allMoves.length === 0) continue;
       for (const defender of defenders) {
         if (defender.fainted) continue;
-        for (const moveName of attacker.revealedMoves) {
+        for (const { name: moveName, source: moveSource } of allMoves) {
           if (!isOffensiveMove(moveName)) continue; // Status moves (Protect, Calm Mind...) n'infligent pas de dégâts directs.
           const attackerLabel = attacker.nickname || attacker.species;
           const defenderLabel = defender.nickname || defender.species;
           try {
             const result = calculateDamage(attacker, defender, moveName, battle, attackerSide);
-            entries.push({ status: 'ok', attackerSide, attackerLabel, defenderLabel, moveName, result });
+            entries.push({ status: 'ok', attackerSide, attackerLabel, defenderLabel, moveName, moveSource, result });
           } catch (err) {
             const message =
               err instanceof DexLookupError
                 ? `"${err.entityName}" hors dex Champions`
                 : `Erreur de calcul (${(err as Error).message})`;
-            entries.push({ status: 'unsupported', attackerSide, attackerLabel, defenderLabel, moveName, message });
+            entries.push({
+              status: 'unsupported',
+              attackerSide,
+              attackerLabel,
+              defenderLabel,
+              moveName,
+              moveSource,
+              message,
+            });
           }
         }
       }
@@ -857,7 +878,8 @@ function MatchupsPanel({ battle, p1Name, p2Name }: { battle: BattleState; p1Name
   if (matchups.length === 0) {
     return (
       <div className="matchups-panel matchups-empty">
-        Aucun move révélé encore utilisable pour calculer des dégâts à ce stade du combat.
+        Aucun move révélé (ni deviné via un set de référence) encore utilisable pour calculer des
+        dégâts à ce stade du combat.
       </div>
     );
   }
@@ -897,10 +919,17 @@ function MatchupsPanel({ battle, p1Name, p2Name }: { battle: BattleState; p1Name
 
 function MatchupCard({ matchup }: { matchup: MatchupEntry & { status: 'ok' } }) {
   return (
-    <div className="matchup-card">
+    <div className={`matchup-card ${matchup.moveSource === 'guessed' ? 'matchup-card-guessed' : ''}`}>
       <div className="matchup-header">
         <span className="matchup-attacker">{matchup.attackerLabel}</span>
-        <span className="matchup-move">{matchup.moveName}</span>
+        <span className="matchup-move">
+          {matchup.moveName}
+          {matchup.moveSource === 'guessed' && (
+            <span className="matchup-move-guessed-tag" title="Move pas encore vu en combat — tiré du set de référence NCP deviné pour ce Pokémon">
+              deviné
+            </span>
+          )}
+        </span>
         <span className="matchup-arrow">→</span>
         <span className="matchup-defender">{matchup.defenderLabel}</span>
       </div>
