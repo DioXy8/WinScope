@@ -61,6 +61,37 @@ body {
   cursor: not-allowed;
 }
 
+.set-confidence-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin: 2px 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  cursor: help;
+}
+
+.set-confidence-exact {
+  background: #1d3a22;
+  border: 1px solid #306a34;
+  color: #8ee68e;
+}
+
+.set-confidence-estimated {
+  background: #3a301d;
+  border: 1px solid #7a6430;
+  color: #ffdf9e;
+}
+
+.set-confidence-default {
+  background: #2a2d35;
+  border: 1px solid #3a3d45;
+  color: #888;
+}
+
 .error-box {
   background: #3a1d1d;
   border: 1px solid #7a3030;
