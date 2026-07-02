@@ -88,4 +88,57 @@ describe('buildVendorPokemon — formule de stats Pokémon Champions', () => {
 
     expect(vendor.ivs).toEqual({ hp: 31, at: 31, df: 31, sa: 31, sd: 31, sp: 31 });
   });
+
+  it('sans userProvidedSet ni knownSet, retombe sur le set de référence NCP (adversaire par défaut)', () => {
+    const incineroar = createInitialPokemonState({ species: 'Incineroar', side: 'p2', level: 50 });
+    const vendor = buildVendorPokemon(incineroar);
+
+    // Set de référence "Balanced Bulk Sitrus" : 32 HP / 14 Def / 20 SpD, Careful, Sitrus Berry.
+    expect(vendor.nature).toBe('Careful');
+    expect(vendor.item).toBe('Sitrus Berry');
+    // floor((90*2+31)*50/100) + 5 + 14 = floor(105.5) + 19 = 105 + 19 = 124, puis Careful ne boost pas Def.
+    expect(vendor.rawStats.df).toBe(124);
+  });
+
+  it('privilégie le set de référence dont les moves recoupent les moves déjà révélés par le replay', () => {
+    const floette = withRevealed(
+      createInitialPokemonState({ species: 'Floette-Eternal', side: 'p2', level: 50 }),
+      { revealedMoves: ['Calm Mind', 'Draining Kiss'] },
+    );
+    const vendor = buildVendorPokemon(floette);
+
+    expect(vendor.nature).toBe('Modest'); // "Calm Mind Mega Sweeper"
+  });
+
+  it('un item réellement révélé par le replay prime toujours sur le set de référence', () => {
+    const incineroar = withRevealed(
+      createInitialPokemonState({ species: 'Incineroar', side: 'p2', level: 50 }),
+      { revealedItem: 'Safety Goggles' },
+    );
+    const vendor = buildVendorPokemon(incineroar);
+
+    expect(vendor.item).toBe('Safety Goggles');
+  });
+
+  it('un userProvidedSet reste complet tel quel : une stat absente vaut 0, jamais complétée par le set de référence', () => {
+    // Un Incineroar utilisateur avec SEULEMENT de la SpD investie : Def doit
+    // rester à 0 point, PAS être comblée par les 14 Def du set de référence NCP.
+    const incineroar = withRevealed(
+      createInitialPokemonState({ species: 'Incineroar', side: 'p1', level: 50 }),
+      {
+        userProvidedSet: {
+          ability: null,
+          item: null,
+          nature: 'Careful',
+          evs: { spd: 20 },
+          ivs: {},
+          teraType: null,
+        },
+      },
+    );
+    const vendor = buildVendorPokemon(incineroar);
+
+    // Def base only : floor((90*2+31)*50/100) + 5 + 0 = 105 + 5 = 110 (pas 124 comme avec le set de référence).
+    expect(vendor.rawStats.df).toBe(110);
+  });
 });
