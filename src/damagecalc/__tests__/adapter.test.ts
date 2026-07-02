@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialPokemonState } from '../../engine/state';
 import type { PokemonState } from '../../engine/state';
-import { buildVendorPokemon, getSetConfidence } from '../adapter';
+import { buildVendorPokemon, getSetConfidence, getEstimatedMoves } from '../adapter';
 
 function withRevealed(p: PokemonState, overrides: Partial<PokemonState>): PokemonState {
   return { ...p, ...overrides };
@@ -161,5 +161,29 @@ describe('getSetConfidence', () => {
     // Pikachu n'a probablement pas de set de référence Champions Reg M-B catalogué.
     const confidence = getSetConfidence(pikachu);
     expect(['default', 'estimated']).toContain(confidence.kind); // robuste si un set Pikachu est ajouté un jour
+  });
+});
+
+describe('getEstimatedMoves', () => {
+  it('retourne les moves du set de référence deviné (Swampert, rain offense mega attendu)', () => {
+    const swampert = createInitialPokemonState({ species: 'Swampert', side: 'p2', level: 50 });
+    const moves = getEstimatedMoves(swampert);
+    expect(moves.length).toBeGreaterThan(0);
+  });
+
+  it('retourne [] quand un userProvidedSet exact est fourni (pas besoin de deviner)', () => {
+    const swampert = withRevealed(createInitialPokemonState({ species: 'Swampert', side: 'p1', level: 50 }), {
+      userProvidedSet: { ability: null, item: null, nature: 'Adamant', evs: { atk: 32 }, ivs: {}, teraType: null },
+    });
+    expect(getEstimatedMoves(swampert)).toEqual([]);
+  });
+
+  it('n’inclut pas de doublon avec les moves déjà révélés côté appelant (filtrage fait dans computeMatchups)', () => {
+    // getEstimatedMoves lui-même retourne juste le set complet du set de
+    // référence ; le dédoublonnage avec revealedMoves est la responsabilité
+    // de l'appelant (cf. computeMatchups dans ui/App.tsx).
+    const swampert = createInitialPokemonState({ species: 'Swampert', side: 'p2', level: 50 });
+    const moves = getEstimatedMoves(swampert);
+    expect(new Set(moves).size).toBe(moves.length);
   });
 });
