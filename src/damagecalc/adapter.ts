@@ -112,19 +112,41 @@ function computeBoostedStats(rawStats: VendorStatBlock, boosts: VendorPokemon['b
   };
 }
 
+/**
+ * Calcule les stats brutes (avant boosts de combat), selon la VRAIE formule
+ * de Pokémon Champions — PAS la formule classique des jeux principaux.
+ *
+ * Source : stat_data.js::CALC_HP_CHAMP / CALC_STAT_CHAMP du NCP VGC Damage
+ * Calculator (référence adoptée par ce projet) :
+ *   HP  = floor((base*2+31)*50/100) + 50 + 10 + statPoints
+ *   Stat = floor((floor((base*2+31)*50/100) + 5 + statPoints) * nature)
+ *
+ * Confirmé empiriquement par les PokéPaste réels de l'utilisateur : ses
+ * "EVs: 31 HP / 19 Def / 16 SpD" ne sont PAS des EVs classiques 0-252 (qui
+ * seraient des multiples de 4), mais des "Stat Points" 0-32 par stat.
+ * Champions simplifie radicalement les mécaniques historiques :
+ *  - le niveau est TOUJOURS 50 (constante du jeu, jamais variable),
+ *  - les IVs sont TOUJOURS 31 (pas de génétique individuelle dans ce jeu),
+ *  - les Stat Points s'AJOUTENT DIRECTEMENT au stat de base (pas de /4
+ *    comme les EVs classiques), après le calcul de base mais avant la
+ *    nature (sauf HP, jamais affectée par la nature).
+ *
+ * BUG CORRIGÉ (02/07) : la version précédente utilisait la formule
+ * classique (2*base+iv+floor(ev/4))*level/100+5 en traitant les valeurs de
+ * "EVs:" comme des EVs 0-252 — ce qui sous-évaluait fortement les stats dès
+ * qu'un vrai PokéPaste était fourni (ex: Sinistcha 19 Def → seulement 4
+ * points d'investissement classique au lieu des 19 points Champions réels).
+ */
 function computeRawStats(
   baseStats: ChampionsPokedexEntry['bs'],
-  level: number,
-  evs: Partial<Record<StatId | 'hp', number>>,
-  ivs: Partial<Record<StatId | 'hp', number>>,
+  statPoints: Partial<Record<StatId | 'hp', number>>,
   nature: string,
 ): VendorStatBlock {
   const natureEntry = NATURES[nature] ?? ['', ''];
   const [boostedStat, reducedStat] = natureEntry;
 
-  const hpEv = evs.hp ?? 0;
-  const hpIv = ivs.hp ?? 31;
-  const hp = Math.floor(((2 * baseStats.hp + hpIv + Math.floor(hpEv / 4)) * level) / 100) + level + 10;
+  const hpPoints = statPoints.hp ?? 0;
+  const hp = Math.floor(((baseStats.hp * 2 + 31) * 50) / 100) + 50 + 10 + hpPoints;
 
   const result: VendorStatBlock = { hp, at: 0, df: 0, sa: 0, sd: 0, sp: 0 };
 
@@ -135,43 +157,29 @@ function computeRawStats(
     sd: baseStats.sd,
     sp: baseStats.sp,
   };
-  const evMap: Record<string, number> = {
-    at: evs.atk ?? 0,
-    df: evs.def ?? 0,
-    sa: evs.spa ?? 0,
-    sd: evs.spd ?? 0,
-    sp: evs.spe ?? 0,
-  };
-  const ivMap: Record<string, number> = {
-    at: ivs.atk ?? 31,
-    df: ivs.def ?? 31,
-    sa: ivs.spa ?? 31,
-    sd: ivs.spd ?? 31,
-    sp: ivs.spe ?? 31,
+  const pointsMap: Record<string, number> = {
+    at: statPoints.atk ?? 0,
+    df: statPoints.def ?? 0,
+    sa: statPoints.spa ?? 0,
+    sd: statPoints.spd ?? 0,
+    sp: statPoints.spe ?? 0,
   };
 
   for (const key of VENDOR_STAT_KEYS) {
     const base = baseStatMap[key];
-    const ev = evMap[key];
-    const iv = ivMap[key];
-    let stat = Math.floor(((2 * base + iv + Math.floor(ev / 4)) * level) / 100) + 5;
+    const points = pointsMap[key];
     const natureMod = key === boostedStat ? 1.1 : key === reducedStat ? 0.9 : 1.0;
-    stat = Math.floor(stat * natureMod);
-    result[key] = stat;
+    const beforeNature = Math.floor(((base * 2 + 31) * 50) / 100) + 5 + points;
+    result[key] = Math.floor(beforeNature * natureMod);
   }
 
   return result;
 }
 
-const DEFAULT_EVS: Partial<Record<StatId | 'hp', number>> = {};
-const DEFAULT_IVS: Partial<Record<StatId | 'hp', number>> = {
-  hp: 31,
-  atk: 31,
-  def: 31,
-  spa: 31,
-  spd: 31,
-  spe: 31,
-};
+/** Stat Points par défaut (0 partout) quand ni userProvidedSet ni knownSet ne donnent de valeur. */
+const DEFAULT_STAT_POINTS: Partial<Record<StatId | 'hp', number>> = {};
+/** IVs toujours 31 dans Pokémon Champions (pas de génétique individuelle) — constante, jamais lue depuis un set. */
+const FIXED_IVS: VendorStatBlock = { hp: 31, at: 31, df: 31, sa: 31, sd: 31, sp: 31 };
 const DEFAULT_NATURE = 'Hardy';
 
 /**
@@ -188,13 +196,14 @@ export function buildVendorPokemon(pokemon: PokemonState): VendorPokemon {
   const entry = lookupPokedexEntry(dexName);
 
   const userSet = pokemon.userProvidedSet;
-  const evs = userSet?.evs ?? pokemon.knownSet.evs ?? DEFAULT_EVS;
-  const ivs = userSet?.ivs ?? pokemon.knownSet.ivs ?? DEFAULT_IVS;
+  // Historiquement nommé "evs" dans PartialPokemonSet (cf. engine/state.ts),
+  // mais représente en réalité des Stat Points 0-32 (voir computeRawStats).
+  const statPoints = userSet?.evs ?? pokemon.knownSet.evs ?? DEFAULT_STAT_POINTS;
   const nature = userSet?.nature ?? pokemon.knownSet.nature ?? DEFAULT_NATURE;
   const ability = pokemon.revealedAbility ?? userSet?.ability ?? entry.ab;
   const item = pokemon.itemConsumed ? '' : pokemon.revealedItem ?? userSet?.item ?? '';
 
-  const rawStats = computeRawStats(entry.bs, pokemon.level, evs, ivs, nature);
+  const rawStats = computeRawStats(entry.bs, statPoints, nature);
 
   const maxHp = pokemon.maxHp ?? rawStats.hp;
   const curHp = pokemon.hpIsPercentage
@@ -226,21 +235,13 @@ export function buildVendorPokemon(pokemon: PokemonState): VendorPokemon {
   // de combat (Calm Mind, Intimidate, etc.), ce qui était le bug initial.
   const boostedStats = computeBoostedStats(rawStats, boosts);
 
-  const evBlock: VendorStatBlock = {
-    hp: evs.hp ?? 0,
-    at: evs.atk ?? 0,
-    df: evs.def ?? 0,
-    sa: evs.spa ?? 0,
-    sd: evs.spd ?? 0,
-    sp: evs.spe ?? 0,
-  };
-  const ivBlock: VendorStatBlock = {
-    hp: ivs.hp ?? 31,
-    at: ivs.atk ?? 31,
-    df: ivs.def ?? 31,
-    sa: ivs.spa ?? 31,
-    sd: ivs.spd ?? 31,
-    sp: ivs.spe ?? 31,
+  const spBlock: VendorStatBlock = {
+    hp: statPoints.hp ?? 0,
+    at: statPoints.atk ?? 0,
+    df: statPoints.def ?? 0,
+    sa: statPoints.spa ?? 0,
+    sd: statPoints.spd ?? 0,
+    sp: statPoints.spe ?? 0,
   };
 
   const teraType = pokemon.isTerastallized ? pokemon.teraType : null;
@@ -254,24 +255,21 @@ export function buildVendorPokemon(pokemon: PokemonState): VendorPokemon {
     curHP: curHp,
     maxHP: maxHp,
     HPraw: maxHp,
-    HPEVs: evBlock.hp,
-    HPIVs: ivBlock.hp,
-    HPSPs: Math.round(evBlock.hp / 4),
+    HPEVs: spBlock.hp,
+    HPIVs: FIXED_IVS.hp,
+    HPSPs: spBlock.hp,
 
     rawStats,
     stats: boostedStats,
     boosts,
 
-    evs: evBlock,
-    ivs: ivBlock,
-    sps: {
-      hp: Math.round(evBlock.hp / 4),
-      at: Math.round(evBlock.at / 4),
-      df: Math.round(evBlock.df / 4),
-      sa: Math.round(evBlock.sa / 4),
-      sd: Math.round(evBlock.sd / 4),
-      sp: Math.round(evBlock.sp / 4),
-    },
+    // `evs`/`sps` ne sont utilisés par le moteur vendor que pour des
+    // chaînes de description texte (jamais affichées ici, resultDisplayMode
+    // est forcé à "raw"), mais on les remplit correctement quand même par
+    // cohérence de contrat de type — ce sont bien les mêmes Stat Points.
+    evs: spBlock,
+    ivs: FIXED_IVS,
+    sps: spBlock,
     nature,
 
     ability,
