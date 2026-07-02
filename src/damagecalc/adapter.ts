@@ -215,6 +215,30 @@ function mergeStatPoints(
   return result;
 }
 
+export type SetConfidence =
+  | { kind: 'exact' }
+  | { kind: 'estimated'; setName: string }
+  | { kind: 'default' };
+
+/**
+ * Indique la fiabilité du set utilisé pour CE Pokémon dans les calculs de
+ * dégâts, pour affichage transparent dans l'UI (cf. PokemonCard) :
+ *  - 'exact'     : PokéPaste utilisateur fourni (userProvidedSet) — stats réelles.
+ *  - 'estimated' : aucun set exact, mais un set de référence NCP a été
+ *                  trouvé pour cette espèce (deviné, potentiellement faux).
+ *  - 'default'   : aucun set exact ni de référence — stats neutres (0
+ *                  Stat Points, nature Hardy), la pire hypothèse possible.
+ *
+ * Reproduit EXACTEMENT la même priorité que buildVendorPokemon — à tenir
+ * synchronisé si cette priorité change un jour.
+ */
+export function getSetConfidence(pokemon: PokemonState): SetConfidence {
+  if (pokemon.userProvidedSet) return { kind: 'exact' };
+  const referenceSet = pickBestReferenceSet(pokemon.species, pokemon.revealedMoves);
+  if (referenceSet) return { kind: 'estimated', setName: referenceSet.setName };
+  return { kind: 'default' };
+}
+
 export function buildVendorPokemon(pokemon: PokemonState): VendorPokemon {
   const dexName = resolveDexName(pokemon);
   const entry = lookupPokedexEntry(dexName);
