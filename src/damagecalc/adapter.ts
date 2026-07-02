@@ -239,6 +239,19 @@ export function getSetConfidence(pokemon: PokemonState): SetConfidence {
   return { kind: 'default' };
 }
 
+/**
+ * Retourne les moves du set de référence deviné pour ce Pokémon — utile
+ * pour proposer des calculs de dégâts sur des moves probables d'après le
+ * set NCP mais pas encore révélés en combat. Retourne [] si un set exact
+ * (PokéPaste) est disponible (on a alors déjà les vrais moves quelque
+ * part côté UI) ou si aucun set de référence n'a été trouvé.
+ */
+export function getEstimatedMoves(pokemon: PokemonState): string[] {
+  if (pokemon.userProvidedSet) return [];
+  const referenceSet = pickBestReferenceSet(pokemon.species, pokemon.revealedMoves);
+  return referenceSet?.moves ?? [];
+}
+
 export function buildVendorPokemon(pokemon: PokemonState): VendorPokemon {
   const dexName = resolveDexName(pokemon);
   const entry = lookupPokedexEntry(dexName);
