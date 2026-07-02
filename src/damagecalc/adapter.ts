@@ -16,6 +16,7 @@ import type { BattleState, PokemonState, WeatherCondition, TerrainCondition } fr
 import type { StatId } from '../replay/types';
 import championsData from './vendor/data/championsData.json';
 import type { VendorField, VendorMove, VendorPokemon, VendorStatBlock } from './types';
+import { pickBestReferenceSet } from '../sets/referenceSets';
 
 type ChampionsPokedexEntry = {
   t1: string;
@@ -176,8 +177,6 @@ function computeRawStats(
   return result;
 }
 
-/** Stat Points par défaut (0 partout) quand ni userProvidedSet ni knownSet ne donnent de valeur. */
-const DEFAULT_STAT_POINTS: Partial<Record<StatId | 'hp', number>> = {};
 /** IVs toujours 31 dans Pokémon Champions (pas de génétique individuelle) — constante, jamais lue depuis un set. */
 const FIXED_IVS: VendorStatBlock = { hp: 31, at: 31, df: 31, sa: 31, sd: 31, sp: 31 };
 const DEFAULT_NATURE = 'Hardy';
@@ -191,17 +190,53 @@ const DEFAULT_NATURE = 'Hardy';
  * userProvidedSet s'ils ont été saisis manuellement, sinon des valeurs
  * neutres par défaut sont utilisées (31 IVs partout, 0 EVs, nature Hardy).
  */
+const STAT_POINT_KEYS: (StatId | 'hp')[] = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'];
+
+/**
+ * Fusionne plusieurs sources de Stat Points par ordre de priorité,
+ * stat par stat. Utilisé UNIQUEMENT pour combiner knownSet (révélé par le
+ * replay) et referenceSet (deviné) — jamais pour userProvidedSet, car un
+ * PokéPaste utilisateur est toujours complet par construction : une stat
+ * absente y signifie "0 point volontairement", pas "inconnue", donc elle
+ * ne doit jamais être complétée par une autre source (cf. buildVendorPokemon).
+ */
+function mergeStatPoints(
+  ...sources: Array<Partial<Record<StatId | 'hp', number>> | undefined>
+): Partial<Record<StatId | 'hp', number>> {
+  const result: Partial<Record<StatId | 'hp', number>> = {};
+  for (const key of STAT_POINT_KEYS) {
+    for (const source of sources) {
+      if (source && source[key] !== undefined) {
+        result[key] = source[key];
+        break;
+      }
+    }
+  }
+  return result;
+}
+
 export function buildVendorPokemon(pokemon: PokemonState): VendorPokemon {
   const dexName = resolveDexName(pokemon);
   const entry = lookupPokedexEntry(dexName);
 
   const userSet = pokemon.userProvidedSet;
+  // pokemon.species reste l'espèce de BASE même Mega-évoluée (cf.
+  // engine/reducer.ts), donc c'est la bonne clé pour chercher un set de
+  // référence — le dex NCP catalogue aussi ses sets par espèce de base.
+  const referenceSet = pickBestReferenceSet(pokemon.species, pokemon.revealedMoves);
+
   // Historiquement nommé "evs" dans PartialPokemonSet (cf. engine/state.ts),
   // mais représente en réalité des Stat Points 0-32 (voir computeRawStats).
-  const statPoints = userSet?.evs ?? pokemon.knownSet.evs ?? DEFAULT_STAT_POINTS;
-  const nature = userSet?.nature ?? pokemon.knownSet.nature ?? DEFAULT_NATURE;
-  const ability = pokemon.revealedAbility ?? userSet?.ability ?? entry.ab;
-  const item = pokemon.itemConsumed ? '' : pokemon.revealedItem ?? userSet?.item ?? '';
+  // Un PokéPaste utilisateur (userSet) est toujours complet par
+  // construction : on l'utilise TEL QUEL sans compléter par le reste (une
+  // stat qui y est absente vaut 0, pas "à deviner"). Sans userSet, on
+  // fusionne knownSet (révélé par le replay, prioritaire) et referenceSet
+  // (deviné, en dernier recours) stat par stat.
+  const statPoints = userSet?.evs ?? mergeStatPoints(pokemon.knownSet.evs, referenceSet?.evs);
+  const nature = userSet?.nature ?? pokemon.knownSet.nature ?? referenceSet?.nature ?? DEFAULT_NATURE;
+  const ability = pokemon.revealedAbility ?? userSet?.ability ?? referenceSet?.ability ?? entry.ab;
+  const item =
+    pokemon.itemConsumed ? '' : pokemon.revealedItem ?? userSet?.item ?? referenceSet?.item ?? '';
 
   const rawStats = computeRawStats(entry.bs, statPoints, nature);
 
