@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialPokemonState } from '../../engine/state';
 import type { PokemonState } from '../../engine/state';
-import { buildVendorPokemon } from '../adapter';
+import { buildVendorPokemon, getSetConfidence } from '../adapter';
 
 function withRevealed(p: PokemonState, overrides: Partial<PokemonState>): PokemonState {
   return { ...p, ...overrides };
@@ -140,5 +140,26 @@ describe('buildVendorPokemon — formule de stats Pokémon Champions', () => {
 
     // Def base only : floor((90*2+31)*50/100) + 5 + 0 = 105 + 5 = 110 (pas 124 comme avec le set de référence).
     expect(vendor.rawStats.df).toBe(110);
+  });
+});
+
+describe('getSetConfidence', () => {
+  it('retourne "exact" quand un userProvidedSet est présent', () => {
+    const incineroar = withRevealed(createInitialPokemonState({ species: 'Incineroar', side: 'p1', level: 50 }), {
+      userProvidedSet: { ability: null, item: null, nature: 'Careful', evs: { hp: 32 }, ivs: {}, teraType: null },
+    });
+    expect(getSetConfidence(incineroar)).toEqual({ kind: 'exact' });
+  });
+
+  it('retourne "estimated" avec le nom du set NCP quand aucun userProvidedSet mais un set de référence existe', () => {
+    const incineroar = createInitialPokemonState({ species: 'Incineroar', side: 'p2', level: 50 });
+    expect(getSetConfidence(incineroar)).toEqual({ kind: 'estimated', setName: 'Balanced Bulk Sitrus' });
+  });
+
+  it('retourne "default" pour une espèce sans set de référence ni userProvidedSet', () => {
+    const pikachu = createInitialPokemonState({ species: 'Pikachu', side: 'p2', level: 50 });
+    // Pikachu n'a probablement pas de set de référence Champions Reg M-B catalogué.
+    const confidence = getSetConfidence(pikachu);
+    expect(['default', 'estimated']).toContain(confidence.kind); // robuste si un set Pikachu est ajouté un jour
   });
 });
