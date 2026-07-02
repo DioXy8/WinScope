@@ -8,7 +8,7 @@ import type { BattleState, PokemonState } from '../engine/state';
 import { estimateWinProbability } from '../search/evaluator';
 import { calculateDamage, DexLookupError } from '../damagecalc/damageCalc';
 import type { DamageCalcResult } from '../damagecalc/damageCalc';
-import { isOffensiveMove } from '../damagecalc/adapter';
+import { isOffensiveMove, getSetConfidence } from '../damagecalc/adapter';
 import { analyzeActionsForPosition, getBestWinExpectancyForSide } from '../search/turnAnalyzer';
 import type { ActionScore } from '../search/turnAnalyzer';
 import type { PlayerAction } from '../search/actionTypes';
@@ -699,6 +699,7 @@ function PokemonCard({ pokemon, compact }: { pokemon: PokemonState; compact?: bo
   const hpColorClass = hpPercent > 50 ? 'hp-high' : hpPercent > 20 ? 'hp-mid' : 'hp-low';
 
   const boostEntries = (Object.entries(pokemon.boosts) as [string, number][]).filter(([, v]) => v !== 0);
+  const setConfidence = useMemo(() => getSetConfidence(pokemon), [pokemon]);
 
   let formeLabel = pokemon.nickname || pokemon.species;
   if (pokemon.isMegaEvolved) formeLabel = pokemon.megaForme ?? `${formeLabel} (Mega)`;
@@ -717,6 +718,7 @@ function PokemonCard({ pokemon, compact }: { pokemon: PokemonState; compact?: bo
           {pokemon.status && <span className={`status-badge status-${pokemon.status}`}>{pokemon.status}</span>}
         </div>
       </div>
+      <SetConfidenceBadge confidence={setConfidence} compact={compact} />
       <div className="hp-bar-track">
         <div className={`hp-bar-fill ${hpColorClass}`} style={{ width: `${hpPercent}%` }} />
       </div>
@@ -744,6 +746,47 @@ function PokemonCard({ pokemon, compact }: { pokemon: PokemonState; compact?: bo
       )}
       {!compact && pokemon.revealedAbility && <div className="ability-row">✨ {pokemon.revealedAbility}</div>}
     </div>
+  );
+}
+
+/**
+ * Petit badge indiquant la fiabilité du set utilisé pour les calculs de
+ * dégâts de ce Pokémon : set exact (PokéPaste), estimé (set de référence
+ * NCP), ou par défaut (stats neutres, aucune estimation possible). Objectif
+ * : que l'utilisateur ne prenne jamais un % de dégâts basé sur une
+ * estimation pour une certitude.
+ */
+function SetConfidenceBadge({
+  confidence,
+  compact,
+}: {
+  confidence: ReturnType<typeof getSetConfidence>;
+  compact?: boolean;
+}) {
+  if (confidence.kind === 'exact') {
+    return (
+      <span className="set-confidence-badge set-confidence-exact" title="Set exact (ton PokéPaste)">
+        ✓ Set exact
+      </span>
+    );
+  }
+  if (confidence.kind === 'estimated') {
+    return (
+      <span
+        className="set-confidence-badge set-confidence-estimated"
+        title={`Set deviné (référence NCP : "${confidence.setName}") — peut différer du set réellement joué`}
+      >
+        🔍 {compact ? 'Estimé' : `Estimé : ${confidence.setName}`}
+      </span>
+    );
+  }
+  return (
+    <span
+      className="set-confidence-badge set-confidence-default"
+      title="Aucun set connu ni de référence pour cette espèce — stats neutres (0 Stat Points), calculs peu fiables"
+    >
+      ? Stats par défaut
+    </span>
   );
 }
 
