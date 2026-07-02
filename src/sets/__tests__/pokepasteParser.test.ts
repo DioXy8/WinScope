@@ -69,7 +69,7 @@ describe('parsePokePaste', () => {
       'Sneasler',
       'Sinistcha',
       'Incineroar',
-      'Floette',
+      'Floette-Eternal',
       'Kingambit',
     ]);
   });
@@ -82,8 +82,8 @@ describe('parsePokePaste', () => {
     expect(delphox.item).toBe('Delphoxite');
   });
 
-  it('gère "(Genre)" séparément d’un surnom, pour Floette-Mega (F)', () => {
-    const floette = parsePokePaste(DIOXY_TEAM).find((p) => p.species === 'Floette');
+  it('gère "(Genre)" séparément d’un surnom, pour Floette-Mega (F), et applique l’alias Floette-Eternal', () => {
+    const floette = parsePokePaste(DIOXY_TEAM).find((p) => p.species === 'Floette-Eternal');
     expect(floette).toBeDefined();
     expect(floette?.nickname).toBeNull();
     expect(floette?.gender).toBe('F');
@@ -117,6 +117,12 @@ describe('parsePokePaste', () => {
   it('ignore les blocs vides superflus (lignes vides en trop)', () => {
     const withExtraBlankLines = DIOXY_TEAM.replace(/\n\n/g, '\n\n\n\n');
     expect(parsePokePaste(withExtraBlankLines)).toHaveLength(6);
+  });
+
+  it('applique l’alias Floette -> Floette-Eternal même sans Mega (raccourci communautaire)', () => {
+    const [floette] = parsePokePaste('Floette @ Leftovers\nAbility: Fairy Aura\n- Moonblast');
+    expect(floette.species).toBe('Floette-Eternal');
+    expect(floette.isMegaInPaste).toBe(false);
   });
 });
 
