@@ -714,6 +714,11 @@ body {
   padding: 8px 10px;
 }
 
+.matchup-card-guessed {
+  border-style: dashed;
+  border-color: #7a6430;
+}
+
 .matchup-header {
   display: flex;
   align-items: center;
@@ -731,6 +736,20 @@ body {
 .matchup-move {
   color: #ccc;
   font-style: italic;
+}
+
+.matchup-move-guessed-tag {
+  display: inline-block;
+  margin-left: 5px;
+  font-size: 0.62rem;
+  font-style: normal;
+  color: #ffdf9e;
+  background: #3a301d;
+  border: 1px solid #7a6430;
+  border-radius: 999px;
+  padding: 1px 6px;
+  cursor: help;
+  vertical-align: middle;
 }
 
 .matchup-arrow {
