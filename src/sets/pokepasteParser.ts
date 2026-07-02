@@ -71,6 +71,30 @@ function createEmptyParsedSet(): ParsedPokePasteSet {
   };
 }
 
+/**
+ * Alias d'espèces : certains Pokémon sont désignés par un raccourci courant
+ * dans les PokéPaste communautaires qui ne correspond PAS au nom exact
+ * utilisé dans POKEDEX_CHAMPIONS / le protocole replay. Actuellement connu :
+ *
+ *  - "Floette" : la seule Floette capable de Mega-évoluer dans Champions
+ *    est modélisée sous le nom "Floette-Eternal" (comme la vraie Eternal
+ *    Flower Floette des jeux principaux), qui n'a PAS de nom "Floette" nu
+ *    dans la dex. Mais la convention communautaire écrit couramment
+ *    "Floette-Mega" plutôt que "Floette-Eternal-Mega" — une fois le
+ *    suffixe "-Mega" retiré on obtient donc "Floette", qui ne matcherait
+ *    jamais rien sans cet alias.
+ *
+ * Si un autre cas similaire est découvert, l'ajouter ici plutôt que dans la
+ * logique de normalisation générique.
+ */
+const SPECIES_ALIASES: Record<string, string> = {
+  Floette: 'Floette-Eternal',
+};
+
+function applySpeciesAlias(species: string): string {
+  return SPECIES_ALIASES[species] ?? species;
+}
+
 /** Retire le suffixe "-Mega"/"-Mega-X"/"-Mega-Y" d'un nom d'espèce, comme parsePokemonDetails. */
 function normalizeMegaSpecies(rawSpecies: string): {
   species: string;
@@ -79,10 +103,10 @@ function normalizeMegaSpecies(rawSpecies: string): {
 } {
   const megaSuffixMatch = rawSpecies.match(/^(.+)-Mega(-[XY])?$/);
   if (!megaSuffixMatch) {
-    return { species: rawSpecies, isMegaInPaste: false, megaVariant: null };
+    return { species: applySpeciesAlias(rawSpecies), isMegaInPaste: false, megaVariant: null };
   }
   return {
-    species: megaSuffixMatch[1],
+    species: applySpeciesAlias(megaSuffixMatch[1]),
     isMegaInPaste: true,
     megaVariant: (megaSuffixMatch[2]?.slice(1) ?? null) as 'X' | 'Y' | null,
   };
