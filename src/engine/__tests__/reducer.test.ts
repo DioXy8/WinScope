@@ -18,6 +18,15 @@ describe('initBattleStateFromReplay', () => {
   it('starts with no active pokemon on the field yet', () => {
     expect(Object.keys(initial.activeByPosition)).toHaveLength(0);
   });
+
+  it('marque hasBeenSentOut à false pour tous les Pokémon juste annoncés en Team Preview', () => {
+    // Aucun n'a encore été réellement envoyé sur le terrain à ce stade —
+    // seul un vrai |switch|/|drag| doit faire passer ce flag à true (cf.
+    // replayToStates plus bas), pas la simple annonce en Team Preview.
+    for (const pokemon of Object.values(initial.pokemonByKey)) {
+      expect(pokemon.hasBeenSentOut).toBe(false);
+    }
+  });
 });
 
 describe('replayToStates (full sample replay)', () => {
@@ -36,6 +45,11 @@ describe('replayToStates (full sample replay)', () => {
     expect(afterTurn0.activeByPosition.p1b).toBe('p1:Rillaboom');
     expect(afterTurn0.activeByPosition.p2a).toBe('p2:Urshifu-Rapid-Strike');
     expect(afterTurn0.activeByPosition.p2b).toBe('p2:Tornadus');
+  });
+
+  it('marque hasBeenSentOut à true dès qu’un Pokémon entre réellement sur le terrain (régression banc fantôme)', () => {
+    expect(afterTurn0.pokemonByKey['p1:Incineroar'].hasBeenSentOut).toBe(true);
+    expect(afterTurn0.pokemonByKey['p2:Urshifu-Rapid-Strike'].hasBeenSentOut).toBe(true);
   });
 
   it('applies Fake Out damage to Tornadus in turn 1', () => {
