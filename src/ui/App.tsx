@@ -8,7 +8,7 @@ import type { BattleState, PokemonState } from '../engine/state';
 import { estimateWinProbability } from '../search/evaluator';
 import { calculateDamage, DexLookupError } from '../damagecalc/damageCalc';
 import type { DamageCalcResult } from '../damagecalc/damageCalc';
-import { isOffensiveMove, getSetConfidence, getEstimatedMoves } from '../damagecalc/adapter';
+import { isOffensiveMove, getSetConfidence, getKnownMoves } from '../damagecalc/adapter';
 import { analyzeActionsForPosition, getBestWinExpectancyForSide } from '../search/turnAnalyzer';
 import type { ActionScore } from '../search/turnAnalyzer';
 import type { PlayerAction } from '../search/actionTypes';
@@ -524,10 +524,17 @@ function getActivePokemon(battle: BattleState, side: 'p1' | 'p2'): PokemonState[
   return keys.map((key) => battle.pokemonByKey[key]).filter((p): p is PokemonState => Boolean(p));
 }
 
+/**
+ * Banc RÉEL : Pokémon déjà entrés sur le terrain au moins une fois
+ * (`hasBeenSentOut`) dans ce combat, vivants, et pas actuellement actifs.
+ * Sans le filtre `hasBeenSentOut`, les Pokémon seulement annoncés en Team
+ * Preview mais jamais amenés (Reg M-B "bring 6, pick 4") apparaîtraient à
+ * tort comme membres du banc pour toujours.
+ */
 function getBenchPokemon(battle: BattleState, side: 'p1' | 'p2'): PokemonState[] {
   const activeKeys = new Set(Object.values(battle.activeByPosition));
   return Object.entries(battle.pokemonByKey)
-    .filter(([key, p]) => p.side === side && !activeKeys.has(key))
+    .filter(([key, p]) => p.side === side && p.hasBeenSentOut && !p.fainted && !activeKeys.has(key))
     .map(([, p]) => p);
 }
 
@@ -790,102 +797,47 @@ function SetConfidenceBadge({
   );
 }
 
-type MatchupEntry =
-  | {
-      status: 'ok';
-      attackerSide: 'p1' | 'p2';
-      attackerLabel: string;
-      defenderLabel: string;
-      moveName: string;
-      /** 'revealed' = déjà vu en combat, 'guessed' = tiré du set de référence NCP deviné, pas encore confirmé. */
-      moveSource: 'revealed' | 'guessed';
-      result: DamageCalcResult;
-    }
-  | {
-      status: 'unsupported';
-      attackerSide: 'p1' | 'p2';
-      attackerLabel: string;
-      defenderLabel: string;
-      moveName: string;
-      moveSource: 'revealed' | 'guessed';
-      message: string;
-    };
+/** Un Pokémon adverse potentiellement ciblable, avec son statut réel dans CE combat. */
+interface KnownTarget {
+  key: string;
+  pokemon: PokemonState;
+  /** 'active' = sur le terrain, 'bench' = déjà vu ce combat mais pas actif, 'unseen' = annoncé en Team Preview mais jamais envoyé (Reg M-B bring 6, pick 4). */
+  status: 'active' | 'bench' | 'unseen';
+}
 
-function computeMatchups(battle: BattleState): MatchupEntry[] {
-  const p1Active = getActivePokemon(battle, 'p1');
-  const p2Active = getActivePokemon(battle, 'p2');
-  const entries: MatchupEntry[] = [];
+const TARGET_STATUS_ORDER: Record<KnownTarget['status'], number> = { active: 0, bench: 1, unseen: 2 };
 
-  const pairs: [PokemonState[], PokemonState[], 'p1' | 'p2'][] = [
-    [p1Active, p2Active, 'p1'],
-    [p2Active, p1Active, 'p2'],
-  ];
-
-  for (const [attackers, defenders, attackerSide] of pairs) {
-    for (const attacker of attackers) {
-      const revealedSet = new Set(attacker.revealedMoves);
-      // Quand le set de cet attaquant est deviné (set de référence NCP, pas
-      // exact), on propose AUSSI les moves de ce set pas encore vus en
-      // combat — plus utile qu'attendre qu'ils soient joués pour de vrai,
-      // tant que c'est bien indiqué comme non confirmé (moveSource: 'guessed').
-      const estimatedMoves = getEstimatedMoves(attacker).filter((m) => !revealedSet.has(m));
-      const allMoves: { name: string; source: 'revealed' | 'guessed' }[] = [
-        ...attacker.revealedMoves.map((name) => ({ name, source: 'revealed' as const })),
-        ...estimatedMoves.map((name) => ({ name, source: 'guessed' as const })),
-      ];
-      if (attacker.fainted || allMoves.length === 0) continue;
-      for (const defender of defenders) {
-        if (defender.fainted) continue;
-        for (const { name: moveName, source: moveSource } of allMoves) {
-          if (!isOffensiveMove(moveName)) continue; // Status moves (Protect, Calm Mind...) n'infligent pas de dégâts directs.
-          const attackerLabel = attacker.nickname || attacker.species;
-          const defenderLabel = defender.nickname || defender.species;
-          try {
-            const result = calculateDamage(attacker, defender, moveName, battle, attackerSide);
-            entries.push({ status: 'ok', attackerSide, attackerLabel, defenderLabel, moveName, moveSource, result });
-          } catch (err) {
-            const message =
-              err instanceof DexLookupError
-                ? `"${err.entityName}" hors dex Champions`
-                : `Erreur de calcul (${(err as Error).message})`;
-            entries.push({
-              status: 'unsupported',
-              attackerSide,
-              attackerLabel,
-              defenderLabel,
-              moveName,
-              moveSource,
-              message,
-            });
-          }
-        }
-      }
-    }
-  }
-
-  return entries;
+/**
+ * Tous les Pokémon vivants connus d'un côté, utilisables comme cible pour
+ * un calcul de dégâts — y compris ceux annoncés en Team Preview mais
+ * jamais encore envoyés sur le terrain (utile pour anticiper : "si Untel
+ * arrive, qu'est-ce que je lui fais ?"), avec un statut explicite pour ne
+ * jamais confondre un Pokémon réellement sur le terrain avec une simple
+ * possibilité de Team Preview.
+ */
+function getKnownTargets(battle: BattleState, side: 'p1' | 'p2'): KnownTarget[] {
+  const activeKeys = new Set(Object.values(battle.activeByPosition));
+  return Object.entries(battle.pokemonByKey)
+    .filter(([, p]) => p.side === side && !p.fainted)
+    .map(([key, p]) => ({
+      key,
+      pokemon: p,
+      status: (activeKeys.has(key) ? 'active' : p.hasBeenSentOut ? 'bench' : 'unseen') as KnownTarget['status'],
+    }))
+    .sort((a, b) => TARGET_STATUS_ORDER[a.status] - TARGET_STATUS_ORDER[b.status]);
 }
 
 function MatchupsPanel({ battle, p1Name, p2Name }: { battle: BattleState; p1Name: string; p2Name: string }) {
-  const matchups = useMemo(() => computeMatchups(battle), [battle]);
+  const p1Active = useMemo(() => getActivePokemon(battle, 'p1'), [battle]);
+  const p2Active = useMemo(() => getActivePokemon(battle, 'p2'), [battle]);
+  const p1Targets = useMemo(() => getKnownTargets(battle, 'p1'), [battle]);
+  const p2Targets = useMemo(() => getKnownTargets(battle, 'p2'), [battle]);
 
-  const okMatchups = matchups.filter((m): m is MatchupEntry & { status: 'ok' } => m.status === 'ok');
-  const unsupported = matchups.filter(
-    (m): m is MatchupEntry & { status: 'unsupported' } => m.status === 'unsupported',
-  );
-  const uniqueUnsupportedNames = Array.from(new Set(unsupported.map((m) => m.message)));
-
-  if (matchups.length === 0) {
+  if (p1Active.length === 0 && p2Active.length === 0) {
     return (
-      <div className="matchups-panel matchups-empty">
-        Aucun move révélé (ni deviné via un set de référence) encore utilisable pour calculer des
-        dégâts à ce stade du combat.
-      </div>
+      <div className="matchups-panel matchups-empty">Aucun Pokémon actif à ce stade du combat.</div>
     );
   }
-
-  const p1Attacks = okMatchups.filter((m) => m.attackerSide === 'p1');
-  const p2Attacks = okMatchups.filter((m) => m.attackerSide === 'p2');
 
   return (
     <div className="matchups-panel">
@@ -893,56 +845,172 @@ function MatchupsPanel({ battle, p1Name, p2Name }: { battle: BattleState; p1Name
       <div className="matchups-columns">
         <div className="matchups-column">
           <h4 className="matchups-column-title matchups-column-p1">{p1Name} attaque</h4>
-          <div className="matchups-grid">
-            {p1Attacks.map((m, i) => (
-              <MatchupCard key={i} matchup={m} />
+          <div className="attacker-move-cards">
+            {p1Active.map((attacker) => (
+              <AttackerMoveCard
+                key={attacker.species}
+                attacker={attacker}
+                attackerSide="p1"
+                battle={battle}
+                targets={p2Targets}
+              />
             ))}
           </div>
         </div>
         <div className="matchups-column">
           <h4 className="matchups-column-title matchups-column-p2">{p2Name} attaque</h4>
-          <div className="matchups-grid">
-            {p2Attacks.map((m, i) => (
-              <MatchupCard key={i} matchup={m} />
+          <div className="attacker-move-cards">
+            {p2Active.map((attacker) => (
+              <AttackerMoveCard
+                key={attacker.species}
+                attacker={attacker}
+                attackerSide="p2"
+                battle={battle}
+                targets={p1Targets}
+              />
             ))}
           </div>
         </div>
       </div>
-      {uniqueUnsupportedNames.length > 0 && (
-        <p className="matchups-unsupported-note">
-          Non calculable (hors dex Champions actuelle) : {uniqueUnsupportedNames.join(' · ')}
-        </p>
+    </div>
+  );
+}
+
+/** Une carte par Pokémon actif attaquant : ses moves connus, et un sélecteur pour choisir la cible parmi les Pokémon adverses connus. */
+function AttackerMoveCard({
+  attacker,
+  attackerSide,
+  battle,
+  targets,
+}: {
+  attacker: PokemonState;
+  attackerSide: 'p1' | 'p2';
+  battle: BattleState;
+  targets: KnownTarget[];
+}) {
+  const defaultTargetKey = targets.find((t) => t.status === 'active')?.key ?? targets[0]?.key ?? null;
+  const [selectedKey, setSelectedKey] = useState<string | null>(defaultTargetKey);
+
+  // Si la cible sélectionnée n'est plus valide (KO entretemps, tour changé...), retombe sur le défaut.
+  useEffect(() => {
+    if (selectedKey && targets.some((t) => t.key === selectedKey)) return;
+    setSelectedKey(defaultTargetKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targets, defaultTargetKey]);
+
+  const confidence = useMemo(() => getSetConfidence(attacker), [attacker]);
+  const moves = useMemo(() => getKnownMoves(attacker).filter((m) => isOffensiveMove(m.name)), [attacker]);
+  const selectedTarget = targets.find((t) => t.key === selectedKey) ?? null;
+  const attackerLabel = attacker.nickname || attacker.species;
+
+  return (
+    <div className="attacker-move-card">
+      <div className="attacker-move-card-header">
+        <span className="attacker-move-card-name">{attackerLabel}</span>
+        <SetConfidenceBadge confidence={confidence} compact />
+      </div>
+
+      {targets.length > 0 ? (
+        <select
+          className="target-select"
+          value={selectedKey ?? ''}
+          onChange={(e) => setSelectedKey(e.target.value)}
+        >
+          {targets.map((t) => (
+            <option key={t.key} value={t.key}>
+              {(t.pokemon.nickname || t.pokemon.species) +
+                (t.status === 'bench' ? ' (banc)' : t.status === 'unseen' ? ' (pas encore vu)' : '')}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <p className="attacker-move-card-empty">Aucune cible adverse connue.</p>
+      )}
+
+      {moves.length === 0 && <p className="attacker-move-card-empty">Aucun move offensif connu pour l'instant.</p>}
+
+      {selectedTarget && moves.length > 0 && (
+        <div className="attacker-move-list">
+          {moves.map((m) => (
+            <MoveDamageRow
+              key={m.name}
+              moveName={m.name}
+              moveSource={m.source}
+              attacker={attacker}
+              defender={selectedTarget.pokemon}
+              attackerSide={attackerSide}
+              battle={battle}
+            />
+          ))}
+        </div>
       )}
     </div>
   );
 }
 
-function MatchupCard({ matchup }: { matchup: MatchupEntry & { status: 'ok' } }) {
+/** Une ligne "NomDuMove — X% – Y%" au sein d'une AttackerMoveCard, avec badge si le move n'est pas confirmé en combat. */
+function MoveDamageRow({
+  moveName,
+  moveSource,
+  attacker,
+  defender,
+  attackerSide,
+  battle,
+}: {
+  moveName: string;
+  moveSource: 'revealed' | 'known' | 'guessed';
+  attacker: PokemonState;
+  defender: PokemonState;
+  attackerSide: 'p1' | 'p2';
+  battle: BattleState;
+}) {
+  const outcome = useMemo((): { status: 'ok'; result: DamageCalcResult } | { status: 'unsupported'; message: string } => {
+    try {
+      return { status: 'ok', result: calculateDamage(attacker, defender, moveName, battle, attackerSide) };
+    } catch (err) {
+      const message =
+        err instanceof DexLookupError ? `"${err.entityName}" hors dex Champions` : `Erreur de calcul`;
+      return { status: 'unsupported', message };
+    }
+  }, [attacker, defender, moveName, battle, attackerSide]);
+
   return (
-    <div className={`matchup-card ${matchup.moveSource === 'guessed' ? 'matchup-card-guessed' : ''}`}>
-      <div className="matchup-header">
-        <span className="matchup-attacker">{matchup.attackerLabel}</span>
-        <span className="matchup-move">
-          {matchup.moveName}
-          {matchup.moveSource === 'guessed' && (
-            <span className="matchup-move-guessed-tag" title="Move pas encore vu en combat — tiré du set de référence NCP deviné pour ce Pokémon">
-              deviné
-            </span>
-          )}
+    <div className={`move-damage-row ${moveSource === 'guessed' ? 'move-damage-row-guessed' : ''}`}>
+      <span className="move-damage-row-name">
+        {moveName}
+        {moveSource === 'guessed' && (
+          <span
+            className="matchup-move-guessed-tag"
+            title="Move pas encore vu en combat — tiré du set de référence NCP deviné pour ce Pokémon"
+          >
+            deviné
+          </span>
+        )}
+        {moveSource === 'known' && (
+          <span
+            className="matchup-move-known-tag"
+            title="Pas encore joué en combat, mais confirmé par ton PokéPaste"
+          >
+            pas encore joué
+          </span>
+        )}
+      </span>
+      {outcome.status === 'ok' ? (
+        <span className="move-damage-row-result">
+          <span className="move-damage-row-bar-track">
+            <span
+              className="move-damage-row-bar-fill"
+              style={{ width: `${Math.min(100, outcome.result.maxPercent)}%` }}
+            />
+          </span>
+          <span className="move-damage-row-percent">
+            {outcome.result.minPercent}% – {outcome.result.maxPercent}%
+            {outcome.result.maxPercent >= 100 && <span className="matchup-ko-tag"> KO possible</span>}
+          </span>
         </span>
-        <span className="matchup-arrow">→</span>
-        <span className="matchup-defender">{matchup.defenderLabel}</span>
-      </div>
-      <div className="matchup-bar-track">
-        <div
-          className="matchup-bar-fill"
-          style={{ width: `${Math.min(100, matchup.result.maxPercent)}%` }}
-        />
-      </div>
-      <div className="matchup-percent">
-        {matchup.result.minPercent}% – {matchup.result.maxPercent}%
-        {matchup.result.maxPercent >= 100 && <span className="matchup-ko-tag"> KO possible</span>}
-      </div>
+      ) : (
+        <span className="move-damage-row-unsupported">{outcome.message}</span>
+      )}
     </div>
   );
 }
