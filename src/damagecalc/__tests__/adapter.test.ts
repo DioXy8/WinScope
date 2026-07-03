@@ -251,3 +251,54 @@ describe('getKnownMoves', () => {
     expect(getKnownMoves(swampert)).toEqual([{ name: 'Earthquake', source: 'known' }]);
   });
 });
+
+describe('résolution de forme Mega — présomption avant confirmation par le replay', () => {
+  it('présume la forme Mega dès qu’une Mega Stone est révélée, sans attendre le message |-mega|', () => {
+    const swampert = withRevealed(createInitialPokemonState({ species: 'Swampert', side: 'p1', level: 50 }), {
+      revealedItem: 'Swampertite',
+      isMegaEvolved: false, // pas encore confirmé par le replay
+    });
+    const vendor = buildVendorPokemon(swampert);
+    // Résout bien vers Mega Swampert (bs.at = 150), pas Swampert base (bs.at = 110).
+    expect(vendor.name).toBe('Mega Swampert');
+    // Sans userProvidedSet, le set de référence NCP "Rain Offense Mega" s'applique
+    // aussi (32 Atk points, Adamant) : floor((150*2+31)*50/100)+5+32 = 202, *1.1 = 222.
+    expect(vendor.rawStats.at).toBe(222);
+  });
+
+  it('n’assume PAS la Mega Evolution pour Tyranitar même avec la Tyranitarite révélée', () => {
+    const tyranitar = withRevealed(createInitialPokemonState({ species: 'Tyranitar', side: 'p1', level: 50 }), {
+      revealedItem: 'Tyranitarite',
+      isMegaEvolved: false,
+    });
+    const vendor = buildVendorPokemon(tyranitar);
+    expect(vendor.name).toBe('Tyranitar');
+  });
+
+  it('n’assume PAS la Mega Evolution pour Aerodactyl même avec l’Aerodactylite révélée', () => {
+    const aerodactyl = withRevealed(createInitialPokemonState({ species: 'Aerodactyl', side: 'p1', level: 50 }), {
+      revealedItem: 'Aerodactylite',
+      isMegaEvolved: false,
+    });
+    const vendor = buildVendorPokemon(aerodactyl);
+    expect(vendor.name).toBe('Aerodactyl');
+  });
+
+  it('n’assume PAS la Mega Evolution pour Banette même avec la Banettite révélée', () => {
+    const banette = withRevealed(createInitialPokemonState({ species: 'Banette', side: 'p1', level: 50 }), {
+      revealedItem: 'Banettite',
+      isMegaEvolved: false,
+    });
+    const vendor = buildVendorPokemon(banette);
+    expect(vendor.name).toBe('Banette');
+  });
+
+  it('utilise la forme Mega confirmée normalement (isMegaEvolved: true), peu importe l’espèce', () => {
+    const tyranitar = withRevealed(createInitialPokemonState({ species: 'Tyranitar', side: 'p1', level: 50 }), {
+      isMegaEvolved: true,
+      megaForme: 'Mega Tyranitar',
+    });
+    const vendor = buildVendorPokemon(tyranitar);
+    expect(vendor.name).toBe('Mega Tyranitar');
+  });
+});
