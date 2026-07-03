@@ -64,4 +64,44 @@ describe('estimateWinProbability', () => {
     expect(result).toBeLessThanOrEqual(99);
     expect(result).toBeGreaterThanOrEqual(1);
   });
+
+  it('pénalise fortement un dernier Pokémon isolé face à 2 adversaires pleine forme (désavantage structurel du double)', () => {
+    let battle = createInitialBattleState();
+    battle = {
+      ...battle,
+      pokemonByKey: {
+        'p1:Klefki': {
+          ...createInitialPokemonState({ species: 'Klefki', side: 'p1', level: 50 }),
+          maxHp: 100,
+          currentHp: 30,
+        },
+        'p2:Floette': {
+          ...createInitialPokemonState({ species: 'Floette-Eternal', side: 'p2', level: 50 }),
+          maxHp: 100,
+          currentHp: 90,
+        },
+        'p2:Sinistcha': {
+          ...createInitialPokemonState({ species: 'Sinistcha', side: 'p2', level: 50 }),
+          maxHp: 100,
+          currentHp: 95,
+        },
+      },
+    };
+    const result = estimateWinProbability(battle);
+    // Avant le correctif (poids additif seul) ce genre de situation ressortait
+    // autour de 30% ; avec la pénalité structurelle, nettement plus bas.
+    expect(result).toBeLessThan(25);
+  });
+
+  it('n’applique PAS la pénalité isolé quand les deux camps sont à 1 Pokémon vivant chacun (pas d’asymétrie réelle)', () => {
+    let battle = createInitialBattleState();
+    battle = {
+      ...battle,
+      pokemonByKey: {
+        'p1:A': { ...createInitialPokemonState({ species: 'A', side: 'p1', level: 50 }), maxHp: 100, currentHp: 50 },
+        'p2:B': { ...createInitialPokemonState({ species: 'B', side: 'p2', level: 50 }), maxHp: 100, currentHp: 50 },
+      },
+    };
+    expect(estimateWinProbability(battle)).toBe(50);
+  });
 });
