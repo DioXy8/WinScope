@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialPokemonState } from '../../engine/state';
 import type { PokemonState } from '../../engine/state';
-import { buildVendorPokemon, getSetConfidence, getEstimatedMoves } from '../adapter';
+import { buildVendorPokemon, getSetConfidence, getEstimatedMoves, getKnownMoves } from '../adapter';
 
 function withRevealed(p: PokemonState, overrides: Partial<PokemonState>): PokemonState {
   return { ...p, ...overrides };
@@ -27,6 +27,7 @@ describe('buildVendorPokemon — formule de stats Pokémon Champions', () => {
         evs: { hp: 31, def: 19, spd: 16 },
         ivs: {},
         teraType: null,
+        moves: [],
       },
     });
 
@@ -45,6 +46,7 @@ describe('buildVendorPokemon — formule de stats Pokémon Champions', () => {
         evs: { hp: 31, def: 19, spd: 16 },
         ivs: {},
         teraType: null,
+        moves: [],
       },
     });
 
@@ -65,6 +67,7 @@ describe('buildVendorPokemon — formule de stats Pokémon Champions', () => {
         evs: { hp: 32, atk: 32 },
         ivs: {},
         teraType: null,
+        moves: [],
       },
     });
 
@@ -133,6 +136,7 @@ describe('buildVendorPokemon — formule de stats Pokémon Champions', () => {
           evs: { spd: 20 },
           ivs: {},
           teraType: null,
+          moves: [],
         },
       },
     );
@@ -146,7 +150,7 @@ describe('buildVendorPokemon — formule de stats Pokémon Champions', () => {
 describe('getSetConfidence', () => {
   it('retourne "exact" quand un userProvidedSet est présent', () => {
     const incineroar = withRevealed(createInitialPokemonState({ species: 'Incineroar', side: 'p1', level: 50 }), {
-      userProvidedSet: { ability: null, item: null, nature: 'Careful', evs: { hp: 32 }, ivs: {}, teraType: null },
+      userProvidedSet: { ability: null, item: null, nature: 'Careful', evs: { hp: 32 }, ivs: {}, teraType: null, moves: [] },
     });
     expect(getSetConfidence(incineroar)).toEqual({ kind: 'exact' });
   });
@@ -173,7 +177,7 @@ describe('getEstimatedMoves', () => {
 
   it('retourne [] quand un userProvidedSet exact est fourni (pas besoin de deviner)', () => {
     const swampert = withRevealed(createInitialPokemonState({ species: 'Swampert', side: 'p1', level: 50 }), {
-      userProvidedSet: { ability: null, item: null, nature: 'Adamant', evs: { atk: 32 }, ivs: {}, teraType: null },
+      userProvidedSet: { ability: null, item: null, nature: 'Adamant', evs: { atk: 32 }, ivs: {}, teraType: null, moves: [] },
     });
     expect(getEstimatedMoves(swampert)).toEqual([]);
   });
@@ -185,5 +189,65 @@ describe('getEstimatedMoves', () => {
     const swampert = createInitialPokemonState({ species: 'Swampert', side: 'p2', level: 50 });
     const moves = getEstimatedMoves(swampert);
     expect(new Set(moves).size).toBe(moves.length);
+  });
+});
+
+describe('getKnownMoves', () => {
+  it('inclut les moves révélés en combat en premier, avec la source "revealed"', () => {
+    const incineroar = withRevealed(createInitialPokemonState({ species: 'Incineroar', side: 'p1', level: 50 }), {
+      revealedMoves: ['Fake Out', 'Flare Blitz'],
+    });
+    const known = getKnownMoves(incineroar);
+    // Incineroar a aussi un set de référence NCP (pas de userProvidedSet
+    // ici), donc d'autres moves "guessed" peuvent suivre — seul l'ordre et
+    // la source des 2 premiers (révélés) sont garantis.
+    expect(known.slice(0, 2)).toEqual([
+      { name: 'Fake Out', source: 'revealed' },
+      { name: 'Flare Blitz', source: 'revealed' },
+    ]);
+    expect(known.slice(2).every((m) => m.source === 'guessed')).toBe(true);
+  });
+
+  it('complète avec les moves du PokéPaste exact ("known") pas encore joués, sans dupliquer les révélés', () => {
+    const incineroar = withRevealed(createInitialPokemonState({ species: 'Incineroar', side: 'p1', level: 50 }), {
+      revealedMoves: ['Fake Out'],
+      userProvidedSet: {
+        ability: null,
+        item: null,
+        nature: 'Careful',
+        evs: {},
+        ivs: {},
+        teraType: null,
+        moves: ['Fake Out', 'Flare Blitz', 'Throat Chop', 'Parting Shot'],
+      },
+    });
+    expect(getKnownMoves(incineroar)).toEqual([
+      { name: 'Fake Out', source: 'revealed' },
+      { name: 'Flare Blitz', source: 'known' },
+      { name: 'Throat Chop', source: 'known' },
+      { name: 'Parting Shot', source: 'known' },
+    ]);
+  });
+
+  it('complète avec les moves du set deviné ("guessed") seulement en l’absence de userProvidedSet', () => {
+    const swampert = createInitialPokemonState({ species: 'Swampert', side: 'p2', level: 50 });
+    const known = getKnownMoves(swampert);
+    expect(known.length).toBeGreaterThan(0);
+    expect(known.every((m) => m.source === 'guessed')).toBe(true);
+  });
+
+  it('un set exact ne retombe jamais sur le set de référence deviné', () => {
+    const swampert = withRevealed(createInitialPokemonState({ species: 'Swampert', side: 'p1', level: 50 }), {
+      userProvidedSet: {
+        ability: null,
+        item: null,
+        nature: 'Adamant',
+        evs: { atk: 32 },
+        ivs: {},
+        teraType: null,
+        moves: ['Earthquake'],
+      },
+    });
+    expect(getKnownMoves(swampert)).toEqual([{ name: 'Earthquake', source: 'known' }]);
   });
 });
