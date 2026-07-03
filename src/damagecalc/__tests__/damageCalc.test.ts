@@ -44,6 +44,7 @@ describe('calculateDamage', () => {
           evs: { atk: 32, spe: 2 },
           ivs: {},
           teraType: null,
+          moves: [],
         },
       },
     );
@@ -109,6 +110,7 @@ describe('calculateDamage', () => {
           evs: { atk: 32 },
           ivs: {},
           teraType: null,
+          moves: [],
         },
       },
     );
