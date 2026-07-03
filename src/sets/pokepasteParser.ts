@@ -283,5 +283,6 @@ export function toPartialPokemonSet(parsed: ParsedPokePasteSet): PartialPokemonS
     evs: parsed.evs,
     ivs: parsed.ivs,
     teraType: parsed.teraType,
+    moves: parsed.moves,
   };
 }
