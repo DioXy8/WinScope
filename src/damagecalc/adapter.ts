@@ -17,6 +17,7 @@ import type { StatId } from '../replay/types';
 import championsData from './vendor/data/championsData.json';
 import type { VendorField, VendorMove, VendorPokemon, VendorStatBlock } from './types';
 import { pickBestReferenceSet } from '../sets/referenceSets';
+import { resolveMegaForme } from '../engine/megaStones';
 
 type ChampionsPokedexEntry = {
   t1: string;
@@ -44,8 +45,40 @@ export class DexLookupError extends Error {
   }
 }
 
-function resolveDexName(pokemon: PokemonState): string {
+/**
+ * Espèces qui, même en tenant une Mega Stone révélée, ne Mega-évoluent PAS
+ * de façon fiable en pratique :
+ *  - Tyranitar et Aerodactyl : parfois joués sans Mega-évoluer malgré la
+ *    pierre (tech spécifique, garder la stat brute en Mega Stone sans
+ *    l'activer).
+ *  - Banette : la forme Mega est jugée trop faible, quasiment jamais jouée
+ *    même quand la Banettite est révélée.
+ * Pour ces trois-là, on ne présume PAS la Mega Evolution avant qu'elle soit
+ * confirmée par le replay (`isMegaEvolved === true`) — contrairement à
+ * toutes les autres espèces, où la tenue d'une Mega Stone révélée suffit à
+ * présumer la forme Mega pour les calculs (elle survient de toute façon dès
+ * la première action, donc autant l'anticiper plutôt que de sous-estimer
+ * les stats pendant un tour ou deux).
+ */
+const UNRELIABLE_MEGA_SPECIES = new Set(['Tyranitar', 'Aerodactyl', 'Banette']);
+
+/**
+ * Détermine quelle forme utiliser pour les calculs de stats/type : la forme
+ * Mega si elle est confirmée par le replay (`isMegaEvolved`), ou présumée
+ * (Mega Stone révélée sur une espèce fiable, cf. UNRELIABLE_MEGA_SPECIES) ;
+ * sinon la forme de base.
+ */
+export function resolveDexName(pokemon: PokemonState): string {
   if (pokemon.isMegaEvolved && pokemon.megaForme) return pokemon.megaForme;
+
+  if (!UNRELIABLE_MEGA_SPECIES.has(pokemon.species)) {
+    const heldItem = pokemon.itemConsumed
+      ? null
+      : (pokemon.revealedItem ?? pokemon.userProvidedSet?.item ?? pokemon.knownSet.item);
+    const assumedForme = heldItem ? resolveMegaForme(heldItem) : null;
+    if (assumedForme) return assumedForme;
+  }
+
   return pokemon.species;
 }
 
@@ -85,6 +118,17 @@ export function isOffensiveMove(moveName: string): boolean {
   const entry = MOVES[moveName];
   if (!entry) return false;
   return entry.category === 'Physical' || entry.category === 'Special';
+}
+
+/**
+ * true si ce move touche automatiquement toutes les cibles valides (ex:
+ * Earthquake, Dazzling Gleam, Heat Wave) — aucun choix de cible individuel
+ * n'existe pour ces moves, donc afficher la liste des cibles dans un label
+ * n'apporte rien (contrairement à un move single-target comme Flare Blitz).
+ */
+export function isSpreadMove(moveName: string): boolean {
+  const entry = MOVES[moveName];
+  return !!entry?.isSpread;
 }
 
 const VENDOR_STAT_KEYS: (keyof VendorStatBlock)[] = ['at', 'df', 'sa', 'sd', 'sp'];
