@@ -210,6 +210,9 @@ body {
 .team-card-species-item {
   font-size: 0.82rem;
   color: #bbb;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .team-card-empty {
@@ -554,9 +557,19 @@ body {
 
 .pokemon-card-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 6px;
   margin-bottom: 6px;
+}
+
+.pokemon-sprite {
+  flex-shrink: 0;
+  image-rendering: -webkit-optimize-contrast;
+  object-fit: contain;
+}
+
+.pokemon-sprite-placeholder {
+  flex-shrink: 0;
 }
 
 .header-badges {
@@ -583,6 +596,11 @@ body {
 .pokemon-name {
   font-weight: 600;
   font-size: 0.9rem;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status-badge {
