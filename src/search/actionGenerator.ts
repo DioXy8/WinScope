@@ -2,13 +2,15 @@
  * search/actionGenerator.ts
  *
  * Génère la liste des actions PLAUSIBLES qu'un Pokémon actif donné peut
- * jouer à un tour donné : un MoveAction par (move révélé × cible légale),
+ * jouer à un tour donné : un MoveAction par (move connu × cible légale),
  * et un SwitchAction par Pokémon valide du banc.
  *
- * "Plausible" = on se limite aux moves déjà révélés dans le replay pour ce
- * Pokémon (cf. PokemonState.revealedMoves), pas à tout son movepool
- * théorique — cohérent avec la règle du projet (on travaille avec ce qui
- * est connu/saisi, pas avec des suppositions sur des moves jamais vus).
+ * "Connu" = déjà révélé dans le replay pour ce Pokémon, OU présent dans le
+ * PokéPaste exact de l'utilisateur (userProvidedSet), OU tiré du set de
+ * référence NCP deviné pour ce Pokémon (cf.
+ * damagecalc/adapter.ts::getKnownMoves) — jamais son movepool théorique
+ * complet en dehors de ces trois sources. Chaque MoveAction générée porte
+ * un `moveSource` indiquant laquelle de ces trois sources l'a produite.
  *
  * Ce module ne simule rien : il liste juste "ce qu'on pourrait jouer".
  * outcomeSimulator.ts s'occupe d'évaluer le résultat de chaque action.
@@ -18,6 +20,7 @@ import type { BattleState, PokemonState } from '../engine/state';
 import type { PokemonPosition } from '../replay/types';
 import moveTargetsData from '../damagecalc/vendor/data/moveTargets.json';
 import type { MoveAction, MoveTargetInfo, MoveTargetType, SwitchAction, PlayerAction } from './actionTypes';
+import { getKnownMoves } from '../damagecalc/adapter';
 
 const MOVE_TARGETS: Record<string, MoveTargetInfo> = moveTargetsData as any;
 
@@ -144,6 +147,14 @@ function isLikelyStatusMove(moveName: string): boolean {
  * Taunt (status uniquement), Disable (move spécifique), ou le lock d'un
  * Choice item.
  */
+/**
+ * Génère la liste des actions MoveAction plausibles pour un Pokémon actif :
+ * un move × cible légale, pour tout move CONNU pour ce Pokémon (cf.
+ * damagecalc/adapter.ts::getKnownMoves) — déjà révélé en combat, présent
+ * dans le PokéPaste exact de l'utilisateur, ou tiré du set de référence NCP
+ * deviné pour l'adversaire. Chaque action porte son `moveSource` pour
+ * rester transparent sur la fiabilité de l'hypothèse sous-jacente.
+ */
 export function generateMoveActions(battle: BattleState, position: PokemonPosition): MoveAction[] {
   const key = battle.activeByPosition[position];
   if (!key) return [];
@@ -156,7 +167,7 @@ export function generateMoveActions(battle: BattleState, position: PokemonPositi
 
   const actions: MoveAction[] = [];
 
-  for (const moveName of pokemon.revealedMoves) {
+  for (const { name: moveName, source: moveSource } of getKnownMoves(pokemon)) {
     if (choiceLockedMove && moveName !== choiceLockedMove) continue;
     if (disabledMove && moveName === disabledMove) continue;
     if (isTaunted && isLikelyStatusMove(moveName)) continue;
@@ -179,6 +190,7 @@ export function generateMoveActions(battle: BattleState, position: PokemonPositi
         targetPositions: targets,
         willMegaEvolve: false,
         willTerastallize: false,
+        moveSource,
       });
     }
   }
