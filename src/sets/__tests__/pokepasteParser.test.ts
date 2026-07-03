@@ -136,6 +136,7 @@ describe('toPartialPokemonSet', () => {
       evs: { hp: 11, def: 5, spa: 18, spe: 32 },
       ivs: {},
       teraType: null,
+      moves: ['Heat Wave', 'Psyshock', 'Nasty Plot', 'Protect'],
     });
   });
 });
