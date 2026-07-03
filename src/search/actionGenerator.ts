@@ -186,7 +186,13 @@ export function generateMoveActions(battle: BattleState, position: PokemonPositi
   return actions;
 }
 
-/** Génère les SwitchAction plausibles : un par Pokémon vivant du banc. */
+/**
+ * Génère les SwitchAction plausibles : un par Pokémon vivant du banc RÉEL.
+ * Exige `hasBeenSentOut` (déjà entré sur le terrain au moins une fois dans
+ * ce combat) — sans quoi les Pokémon seulement annoncés en Team Preview
+ * mais jamais amenés (cf. Reg M-B "bring 6, pick 4") seraient proposés
+ * comme switches valides indéfiniment, puisqu'ils ne fainteront jamais.
+ */
 export function generateSwitchActions(battle: BattleState, position: PokemonPosition): SwitchAction[] {
   const activeKey = battle.activeByPosition[position];
   if (!activeKey) return [];
@@ -199,7 +205,7 @@ export function generateSwitchActions(battle: BattleState, position: PokemonPosi
   const activeKeys = new Set(Object.values(battle.activeByPosition));
 
   return Object.entries(battle.pokemonByKey)
-    .filter(([key, p]) => p.side === side && !p.fainted && !activeKeys.has(key))
+    .filter(([key, p]) => p.side === side && p.hasBeenSentOut && !p.fainted && !activeKeys.has(key))
     .map(([incomingKey]) => ({
       kind: 'switch' as const,
       userKey: activeKey,
