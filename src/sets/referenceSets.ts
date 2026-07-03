@@ -123,5 +123,6 @@ export function referenceSetToPartialPokemonSet(referenceSet: ReferenceSet): Par
     evs: referenceSet.evs,
     ivs: {},
     teraType: null,
+    moves: referenceSet.moves,
   };
 }
