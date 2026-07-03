@@ -8,7 +8,7 @@ import type { BattleState, PokemonState } from '../engine/state';
 import { estimateWinProbability } from '../search/evaluator';
 import { calculateDamage, DexLookupError } from '../damagecalc/damageCalc';
 import type { DamageCalcResult } from '../damagecalc/damageCalc';
-import { isOffensiveMove, getSetConfidence, getKnownMoves } from '../damagecalc/adapter';
+import { isOffensiveMove, isSpreadMove, getSetConfidence, getKnownMoves, resolveDexName } from '../damagecalc/adapter';
 import { resolveSpriteUrl } from './pokeSprites';
 import { resolveMegaForme } from '../engine/megaStones';
 import { analyzeActionsForPosition, getBestWinExpectancyForSide } from '../search/turnAnalyzer';
@@ -470,8 +470,10 @@ function BattleExplorer({
   const p2Bench = useMemo(() => getBenchPokemon(current, 'p2'), [current]);
 
   return (
-    <section className="explorer">
-      <div className="scrubber">
+    <div className="explorer-layout">
+      <VerticalWinBar p1Name={p1Name} p2Name={p2Name} p1Percent={currentWinP1} />
+      <section className="explorer">
+        <div className="scrubber">
         <button
           className="scrubber-btn"
           onClick={() => onTurnChange(Math.max(0, turnIndex - 1))}
@@ -507,8 +509,6 @@ function BattleExplorer({
         </p>
       )}
 
-      <WinBar p1Name={p1Name} p2Name={p2Name} p1Percent={currentWinP1} />
-
       <WinHistory probabilities={winProbabilities} currentIndex={turnIndex} onSelect={onTurnChange} />
 
       <FieldSummary battle={current} />
@@ -521,7 +521,8 @@ function BattleExplorer({
         <SideColumn label={p1Name} active={p1Active} bench={p1Bench} sideState={current.sides.p1} />
         <SideColumn label={p2Name} active={p2Active} bench={p2Bench} sideState={current.sides.p2} />
       </div>
-    </section>
+      </section>
+    </div>
   );
 }
 
@@ -546,7 +547,13 @@ function getBenchPokemon(battle: BattleState, side: 'p1' | 'p2'): PokemonState[]
     .map(([, p]) => p);
 }
 
-function WinBar({
+/**
+ * Jauge verticale façon thermomètre : bleu (p1) en haut, rouge (p2) en bas,
+ * la frontière monte/descend selon le % de victoire. Remplace l'ancienne
+ * barre horizontale, jugée moins lisible qu'un indicateur permanent sur le
+ * côté de l'écran pendant qu'on parcourt le combat.
+ */
+function VerticalWinBar({
   p1Name,
   p2Name,
   p1Percent,
@@ -555,19 +562,20 @@ function WinBar({
   p2Name: string;
   p1Percent: number;
 }) {
+  const p2Percent = 100 - p1Percent;
   return (
-    <div className="winbar-container">
-      <div className="winbar-labels">
-        <span>
-          {p1Name} — {p1Percent}%
-        </span>
-        <span>
-          {p2Name} — {100 - p1Percent}%
-        </span>
+    <div className="vertical-winbar">
+      <div className="vertical-winbar-label">
+        <span className="vertical-winbar-percent vertical-winbar-percent-p1">{p1Percent}%</span>
+        <span className="vertical-winbar-name">{p1Name}</span>
       </div>
-      <div className="winbar-track">
-        <div className="winbar-fill-p1" style={{ width: `${p1Percent}%` }} />
-        <div className="winbar-fill-p2" style={{ width: `${100 - p1Percent}%` }} />
+      <div className="vertical-winbar-track">
+        <div className="vertical-winbar-fill-p1" style={{ flexGrow: p1Percent }} />
+        <div className="vertical-winbar-fill-p2" style={{ flexGrow: p2Percent }} />
+      </div>
+      <div className="vertical-winbar-label">
+        <span className="vertical-winbar-name">{p2Name}</span>
+        <span className="vertical-winbar-percent vertical-winbar-percent-p2">{p2Percent}%</span>
       </div>
     </div>
   );
@@ -595,15 +603,11 @@ function WinHistory({
     })
     .join(' ');
 
-  const currentX = padding + currentIndex * stepX;
-  const currentY = padding + (height - padding * 2) * (1 - probabilities[currentIndex] / 100);
-
   return (
     <div className="win-history">
       <svg viewBox={`0 0 ${width} ${height}`} className="win-history-svg">
         <line x1={padding} y1={height / 2} x2={width - padding} y2={height / 2} className="win-history-midline" />
         <polyline points={points} className="win-history-line" fill="none" />
-        <circle cx={currentX} cy={currentY} r={4} className="win-history-dot" />
       </svg>
       <input
         type="range"
@@ -767,7 +771,8 @@ function PokemonCard({ pokemon, compact }: { pokemon: PokemonState; compact?: bo
   const setConfidence = useMemo(() => getSetConfidence(pokemon), [pokemon]);
 
   let formeLabel = pokemon.nickname || pokemon.species;
-  if (pokemon.isMegaEvolved) formeLabel = pokemon.megaForme ?? `${formeLabel} (Mega)`;
+  const assumedDexName = resolveDexName(pokemon);
+  if (assumedDexName !== pokemon.species) formeLabel = assumedDexName;
   if (pokemon.isTerastallized) formeLabel += ` (Tera ${pokemon.teraType ?? '?'})`;
 
   return (
@@ -779,8 +784,8 @@ function PokemonCard({ pokemon, compact }: { pokemon: PokemonState; compact?: bo
       <div className="pokemon-card-header">
         <PokemonSprite
           species={pokemon.species}
-          isMegaEvolved={pokemon.isMegaEvolved}
-          megaForme={pokemon.megaForme}
+          isMegaEvolved={assumedDexName !== pokemon.species}
+          megaForme={assumedDexName !== pokemon.species ? assumedDexName : null}
           size={compact ? 28 : 40}
         />
         <span className="pokemon-name">{formeLabel}</span>
@@ -941,6 +946,15 @@ function MatchupsPanel({ battle, p1Name, p2Name }: { battle: BattleState; p1Name
 }
 
 /** Une carte par Pokémon actif attaquant : ses moves connus, et un sélecteur pour choisir la cible parmi les Pokémon adverses connus. */
+type BoostKey = 'atk' | 'def' | 'spa' | 'spd' | 'spe';
+const BOOST_STAT_LABELS: [BoostKey, string][] = [
+  ['atk', 'Atk'],
+  ['def', 'Def'],
+  ['spa', 'SpA'],
+  ['spd', 'SpD'],
+  ['spe', 'Spe'],
+];
+
 function AttackerMoveCard({
   attacker,
   attackerSide,
@@ -954,6 +968,8 @@ function AttackerMoveCard({
 }) {
   const defaultTargetKey = targets.find((t) => t.status === 'active')?.key ?? targets[0]?.key ?? null;
   const [selectedKey, setSelectedKey] = useState<string | null>(defaultTargetKey);
+  const [boostOverrides, setBoostOverrides] = useState<Record<BoostKey, number>>(attacker.boosts);
+  const [showBoosts, setShowBoosts] = useState(false);
 
   // Si la cible sélectionnée n'est plus valide (KO entretemps, tour changé...), retombe sur le défaut.
   useEffect(() => {
@@ -962,10 +978,29 @@ function AttackerMoveCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targets, defaultTargetKey]);
 
+  // Réinitialise les stats hypothétiques aux vraies stats à chaque changement de tour/Pokémon.
+  useEffect(() => {
+    setBoostOverrides(attacker.boosts);
+  }, [attacker]);
+
   const confidence = useMemo(() => getSetConfidence(attacker), [attacker]);
   const moves = useMemo(() => getKnownMoves(attacker).filter((m) => isOffensiveMove(m.name)), [attacker]);
   const selectedTarget = targets.find((t) => t.key === selectedKey) ?? null;
   const attackerLabel = attacker.nickname || attacker.species;
+
+  const isBoostOverridden = BOOST_STAT_LABELS.some(([key]) => boostOverrides[key] !== attacker.boosts[key]);
+  const effectiveAttacker = useMemo(
+    () => (isBoostOverridden ? { ...attacker, boosts: boostOverrides } : attacker),
+    [attacker, boostOverrides, isBoostOverridden],
+  );
+
+  function adjustBoost(key: BoostKey, delta: number) {
+    setBoostOverrides((prev) => ({ ...prev, [key]: Math.max(-6, Math.min(6, prev[key] + delta)) }));
+  }
+
+  function resetBoosts() {
+    setBoostOverrides(attacker.boosts);
+  }
 
   return (
     <div className="attacker-move-card">
@@ -991,6 +1026,43 @@ function AttackerMoveCard({
         <p className="attacker-move-card-empty">Aucune cible adverse connue.</p>
       )}
 
+      <button className="boost-override-toggle" onClick={() => setShowBoosts((v) => !v)}>
+        {showBoosts ? '▾' : '▸'} Stats hypothétiques
+        {isBoostOverridden && <span className="boost-override-active-dot" title="Stats modifiées par rapport au vrai combat" />}
+      </button>
+
+      {showBoosts && (
+        <div className="boost-override-panel">
+          {BOOST_STAT_LABELS.map(([key, label]) => (
+            <div key={key} className="boost-override-stat">
+              <span className="boost-override-label">{label}</span>
+              <button
+                className="boost-override-btn"
+                onClick={() => adjustBoost(key, -1)}
+                disabled={boostOverrides[key] <= -6}
+              >
+                −
+              </button>
+              <span className="boost-override-value">
+                {boostOverrides[key] > 0 ? `+${boostOverrides[key]}` : boostOverrides[key]}
+              </span>
+              <button
+                className="boost-override-btn"
+                onClick={() => adjustBoost(key, 1)}
+                disabled={boostOverrides[key] >= 6}
+              >
+                +
+              </button>
+            </div>
+          ))}
+          {isBoostOverridden && (
+            <button className="boost-override-reset" onClick={resetBoosts}>
+              Réinitialiser
+            </button>
+          )}
+        </div>
+      )}
+
       {moves.length === 0 && <p className="attacker-move-card-empty">Aucun move offensif connu pour l'instant.</p>}
 
       {selectedTarget && moves.length > 0 && (
@@ -1000,7 +1072,7 @@ function AttackerMoveCard({
               key={m.name}
               moveName={m.name}
               moveSource={m.source}
-              attacker={attacker}
+              attacker={effectiveAttacker}
               defender={selectedTarget.pokemon}
               attackerSide={attackerSide}
               battle={battle}
@@ -1089,7 +1161,11 @@ function describeActionShort(action: PlayerAction, battle: BattleState): string 
   if (action.kind === 'switch') {
     return `Switch (${action.incomingKey.split(':')[1] ?? action.incomingKey})`;
   }
-  if (action.targetPositions.length === 0) {
+  if (action.targetPositions.length === 0 || isSpreadMove(action.moveName)) {
+    // Les moves de zone (Earthquake, Dazzling Gleam...) touchent toujours
+    // automatiquement toutes les cibles valides — lister ces cibles
+    // n'apporte rien, contrairement à un move single-target où le choix
+    // de cible est une vraie décision à afficher.
     return action.moveName;
   }
   const targetLabels = action.targetPositions.map((pos) => {
@@ -1125,6 +1201,10 @@ function TurnAnalysisPanel({
         Pour chaque Pokémon actif, compare ses actions possibles ce tour en simulant les réponses
         adverses plausibles. Calcul à la demande (peut prendre quelques instants).
       </p>
+      <p className="turn-analysis-note turn-analysis-note-warning">
+        ⚠ Estimation à horizon 1 tour seulement : l'effet d'un boost (Calm Mind, Swords Dance...) ou
+        d'un pari à long terme n'est pas pleinement reflété, seul l'état juste après ce tour compte.
+      </p>
       <div className="turn-analysis-columns">
         <div className="turn-analysis-column">
           <h4 className="matchups-column-title matchups-column-p1">{p1Name}</h4>
@@ -1155,6 +1235,7 @@ function PositionAnalysisCard({
   position: PokemonPosition;
 }) {
   const [state, setState] = useState<AnalysisState>({ status: 'idle' });
+  const [showAll, setShowAll] = useState(false);
 
   const pokemonKey = battle.activeByPosition[position];
   const pokemon = pokemonKey ? battle.pokemonByKey[pokemonKey] : null;
@@ -1162,6 +1243,7 @@ function PositionAnalysisCard({
   function handleAnalyze() {
     if (!pokemon) return;
     setState({ status: 'loading' });
+    setShowAll(false);
     // Calcul synchrone mais potentiellement coûteux (~100-300ms en doubles) :
     // on le différe d'une frame pour laisser l'UI afficher le spinner avant de bloquer.
     requestAnimationFrame(() => {
@@ -1207,7 +1289,7 @@ function PositionAnalysisCard({
 
       {state.status === 'done' && state.scores.length > 0 && (
         <div className="action-ranking">
-          {state.scores.map((score, i) => (
+          {(showAll ? state.scores : state.scores.slice(0, 3)).map((score, i) => (
             <div
               key={i}
               className={`action-ranking-row ${best && score === best ? 'action-ranking-best' : ''}`}
@@ -1240,6 +1322,11 @@ function PositionAnalysisCard({
               <span className="action-ranking-percent">{score.winExpectancy}%</span>
             </div>
           ))}
+          {state.scores.length > 3 && (
+            <button className="action-ranking-toggle" onClick={() => setShowAll((v) => !v)}>
+              {showAll ? 'Voir moins' : `Voir les ${state.scores.length - 3} autres options`}
+            </button>
+          )}
         </div>
       )}
     </div>
