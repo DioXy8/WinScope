@@ -53,6 +53,7 @@ describe('referenceSets', () => {
       evs: set.evs,
       ivs: {},
       teraType: null,
+      moves: set.moves,
     });
   });
 });
