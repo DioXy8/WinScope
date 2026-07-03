@@ -1,4 +1,5 @@
 /**
+/**
  * engine/state.ts
  *
  * Définit la structure de données centrale du moteur : BattleState.
@@ -26,6 +27,14 @@ export interface PartialPokemonSet {
   evs: Partial<Record<StatId | 'hp', number>>;
   ivs: Partial<Record<StatId | 'hp', number>>;
   teraType: string | null;
+  /**
+   * Moves connus pour ce set (jusqu'à 4) — vide si non renseigné. Pour
+   * userProvidedSet, c'est le vrai moveset du PokéPaste, potentiellement
+   * plus complet que PokemonState.revealedMoves (qui ne contient que les
+   * moves déjà JOUÉS en combat). Sert à proposer des calculs de dégâts sur
+   * les moves pas encore utilisés mais qu'on connaît avec certitude.
+   */
+  moves: string[];
 }
 
 /** Un set Pokémon vide, utilisé comme valeur par défaut avant toute déduction. */
@@ -37,6 +46,7 @@ export function createEmptyPartialSet(): PartialPokemonSet {
     evs: {},
     ivs: {},
     teraType: null,
+    moves: [],
   };
 }
 
@@ -95,6 +105,21 @@ export interface PokemonState {
   fainted: boolean;
 
   /**
+   * true dès que ce Pokémon est réellement entré sur le terrain au moins
+   * une fois (via |switch| ou |drag|) DANS CE COMBAT PRÉCIS. false pour un
+   * Pokémon seulement annoncé en Team Preview mais jamais amené — car
+   * Showdown liste toujours les 6 Pokémon complets en Team Preview même
+   * quand le format n'en autorise que 4 en combat (cf. Reg M-B "bring 6,
+   * pick 4"). Sans ce flag, les 2 non choisis restent pour toujours
+   * `fainted: false` et hors de `activeByPosition`, donc indiscernables
+   * d'un vrai banc — d'où des switches proposés vers des Pokémon qui n'ont,
+   * en réalité, jamais participé à ce match. Toute logique déterminant
+   * "l'équipe réellement amenée" (switches valides, banc affiché...) doit
+   * filtrer sur ce flag, PAS seulement sur fainted/actif.
+   */
+  hasBeenSentOut: boolean;
+
+  /**
    * true si ce Pokémon vient d'entrer sur le terrain PENDANT le tour
    * actuellement affiché (switch-in ou drag). Remis à false au début de
    * chaque nouveau tour. Sert uniquement à l'affichage UI (mettre en
@@ -138,6 +163,7 @@ export function createInitialPokemonState(params: {
     megaStone: null,
     megaForme: null,
     fainted: false,
+    hasBeenSentOut: false,
     switchedInThisTurn: false,
     knownSet: createEmptyPartialSet(),
     userProvidedSet: null,
