@@ -239,6 +239,46 @@ export function getSetConfidence(pokemon: PokemonState): SetConfidence {
   return { kind: 'default' };
 }
 
+export type KnownMove = { name: string; source: 'revealed' | 'known' | 'guessed' };
+
+/**
+ * Liste complète des moves qu'on peut raisonnablement afficher pour ce
+ * Pokémon, avec leur fiabilité :
+ *  - 'revealed' : déjà joué en combat (PokemonState.revealedMoves).
+ *  - 'known'    : pas encore joué, mais présent dans le PokéPaste exact de
+ *                 l'utilisateur (userProvidedSet) — fiable à 100%.
+ *  - 'guessed'  : pas encore joué, tiré du set de référence NCP deviné —
+ *                 peut être faux.
+ *
+ * Dédoublonné (un move révélé n'apparaît qu'une fois même s'il est aussi
+ * dans le PokéPaste ou le set deviné). Ordre : revealed, puis known, puis
+ * guessed.
+ */
+export function getKnownMoves(pokemon: PokemonState): KnownMove[] {
+  const seen = new Set<string>();
+  const result: KnownMove[] = [];
+
+  for (const name of pokemon.revealedMoves) {
+    if (seen.has(name)) continue;
+    seen.add(name);
+    result.push({ name, source: 'revealed' });
+  }
+
+  for (const name of pokemon.userProvidedSet?.moves ?? []) {
+    if (seen.has(name)) continue;
+    seen.add(name);
+    result.push({ name, source: 'known' });
+  }
+
+  for (const name of getEstimatedMoves(pokemon)) {
+    if (seen.has(name)) continue;
+    seen.add(name);
+    result.push({ name, source: 'guessed' });
+  }
+
+  return result;
+}
+
 /**
  * Retourne les moves du set de référence deviné pour ce Pokémon — utile
  * pour proposer des calculs de dégâts sur des moves probables d'après le
