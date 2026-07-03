@@ -14,25 +14,35 @@ function setupDoublesBattle(): BattleState {
   const p1a = {
     ...createInitialPokemonState({ species: 'Incineroar', side: 'p1', level: 50 }),
     position: 'p1a' as const,
+    hasBeenSentOut: true,
     revealedMoves: ['Fake Out', 'Flare Blitz', 'Protect'],
   };
   const p1b = {
     ...createInitialPokemonState({ species: 'Garchomp', side: 'p1', level: 50 }),
     position: 'p1b' as const,
+    hasBeenSentOut: true,
     revealedMoves: ['Earthquake', 'Protect'],
   };
   const p2a = {
     ...createInitialPokemonState({ species: 'Grimmsnarl', side: 'p2', level: 50 }),
     position: 'p2a' as const,
+    hasBeenSentOut: true,
     revealedMoves: ['Spirit Break'],
   };
   const p2b = {
     ...createInitialPokemonState({ species: 'Tornadus', side: 'p2', level: 50 }),
     position: 'p2b' as const,
+    hasBeenSentOut: true,
     revealedMoves: ['Tailwind'],
   };
 
-  const p1Bench = createInitialPokemonState({ species: 'Flutter Mane', side: 'p1', level: 50 });
+  // Membre du banc RÉELLEMENT déjà amené ce combat (déjà vu sur le
+  // terrain à un tour précédent, juste pas actif maintenant) — distinct
+  // d'un Pokémon seulement annoncé en Team Preview mais jamais envoyé.
+  const p1Bench = {
+    ...createInitialPokemonState({ species: 'Flutter Mane', side: 'p1', level: 50 }),
+    hasBeenSentOut: true,
+  };
 
   battle = {
     ...battle,
@@ -121,6 +131,61 @@ describe('generateMoveActions', () => {
     expect(eqActions[0].targetPositions.sort()).toEqual(['p1a', 'p2a', 'p2b'].sort());
   });
 
+  it('inclut les moves du PokéPaste exact ("known") pas encore joués en combat, avec moveSource: "known"', () => {
+    let battle = setupDoublesBattle();
+    const incineroarKey = 'p1:Incineroar';
+    battle = {
+      ...battle,
+      pokemonByKey: {
+        ...battle.pokemonByKey,
+        [incineroarKey]: {
+          ...battle.pokemonByKey[incineroarKey],
+          userProvidedSet: {
+            ability: null,
+            item: null,
+            nature: 'Careful',
+            evs: {},
+            ivs: {},
+            teraType: null,
+            moves: ['Fake Out', 'Flare Blitz', 'Throat Chop', 'Parting Shot'],
+          },
+        },
+      },
+    };
+    const actions = generateMoveActions(battle, 'p1a');
+    const throatChop = actions.filter((a) => a.moveName === 'Throat Chop');
+    expect(throatChop.length).toBeGreaterThan(0);
+    expect(throatChop[0].moveSource).toBe('known');
+
+    const fakeOut = actions.filter((a) => a.moveName === 'Fake Out');
+    expect(fakeOut[0].moveSource).toBe('revealed'); // déjà dans revealedMoves du fixture
+  });
+
+  it('inclut les moves du set de référence NCP deviné ("guessed") en l’absence de userProvidedSet', () => {
+    let battle = setupDoublesBattle();
+    // Remplace Garchomp (fixture) par Swampert, qui a un set de référence NCP catalogué.
+    battle = {
+      ...battle,
+      pokemonByKey: {
+        ...battle.pokemonByKey,
+        'p1:Garchomp': undefined as any,
+        'p1:Swampert': {
+          ...createInitialPokemonState({ species: 'Swampert', side: 'p1', level: 50 }),
+          position: 'p1b' as const,
+          hasBeenSentOut: true,
+          revealedMoves: [],
+        },
+      },
+      activeByPosition: { ...battle.activeByPosition, p1b: 'p1:Swampert' },
+    };
+    delete battle.pokemonByKey['p1:Garchomp'];
+
+    const actions = generateMoveActions(battle, 'p1b');
+    const waveCrash = actions.filter((a) => a.moveName === 'Wave Crash');
+    expect(waveCrash.length).toBeGreaterThan(0);
+    expect(waveCrash[0].moveSource).toBe('guessed');
+  });
+
   it('returns no actions for a fainted pokemon', () => {
     let battle = setupDoublesBattle();
     battle = {
@@ -186,5 +251,24 @@ describe('generateSwitchActions', () => {
       },
     };
     expect(generateSwitchActions(battle, 'p1a')).toEqual([]);
+  });
+
+  it('ne propose PAS un Pokémon seulement annoncé en Team Preview mais jamais réellement envoyé (Reg M-B "bring 6, pick 4")', () => {
+    // Régression : initBattleStateFromReplay pré-remplit pokemonByKey avec
+    // les 6 Pokémon de Team Preview par côté, alors que seuls 4 sont
+    // réellement amenés en combat. Sans le filtre hasBeenSentOut, ces 2
+    // "fantômes" (jamais fainted, jamais actifs) apparaissaient comme des
+    // switches valides pour toujours.
+    let battle = setupDoublesBattle();
+    battle = {
+      ...battle,
+      pokemonByKey: {
+        ...battle.pokemonByKey,
+        'p1:Dragonite': createInitialPokemonState({ species: 'Dragonite', side: 'p1', level: 50 }), // hasBeenSentOut: false par défaut
+      },
+    };
+    const switches = generateSwitchActions(battle, 'p1a');
+    expect(switches.map((s) => s.incomingKey)).toEqual(['p1:Flutter Mane']);
+    expect(switches.some((s) => s.incomingKey === 'p1:Dragonite')).toBe(false);
   });
 });
