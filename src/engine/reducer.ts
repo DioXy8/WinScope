@@ -250,7 +250,13 @@ export function applyLine(battle: BattleState, line: TurnLine): BattleState {
       }
 
       pokemon = setPosition(pokemon, ident.position);
-      pokemon = { ...pokemon, nickname: ident.name, fainted: false, switchedInThisTurn: true };
+      pokemon = {
+        ...pokemon,
+        nickname: ident.name,
+        fainted: false,
+        hasBeenSentOut: true,
+        switchedInThisTurn: true,
+      };
       pokemon = setHp(pokemon, hpStatus.hp, hpStatus.maxHp, hpStatus.isPercentage);
       if (details.teraType) {
         pokemon = setTerastallized(pokemon, details.teraType);
