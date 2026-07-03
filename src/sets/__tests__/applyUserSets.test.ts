@@ -85,6 +85,7 @@ describe('applyUserPokePasteToStates', () => {
       evs: { hp: 32, def: 14, spd: 20 },
       ivs: {},
       teraType: null,
+      moves: ['Flare Blitz', 'Throat Chop', 'Parting Shot', 'Fake Out'],
     });
     expect(states[0].pokemonByKey['p1:Kingambit'].userProvidedSet?.nature).toBe('Adamant');
     // Le côté adverse ne doit jamais recevoir de userProvidedSet.
