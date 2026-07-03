@@ -61,10 +61,24 @@ function summarizeSide(battle: BattleState, side: 'p1' | 'p2'): SideSummary {
  * pleine forme est presque toujours plus précieux qu'un peu de %HP en plus
  * sur les Pokémon déjà actifs.
  */
-const ALIVE_COUNT_WEIGHT = 3;
+const ALIVE_COUNT_WEIGHT = 4;
 
-function sideScore(summary: SideSummary): number {
-  return summary.aliveCount * ALIVE_COUNT_WEIGHT + summary.healthSum;
+/**
+ * Pénalité structurelle appliquée quand un camp n'a plus qu'UN SEUL Pokémon
+ * vivant face à un adversaire qui en a strictement plus : en double, ce
+ * dernier Pokémon encaisse potentiellement les deux attaques adverses
+ * CHAQUE tour tout en ne pouvant riposter qu'une fois — un désavantage
+ * mécanique réel, pas juste un ajustement arbitraire. Sans ce facteur,
+ * l'ancien modèle purement additif (aliveCount*poids + HP%) sous-estimait
+ * nettement la gravité de ce genre de fin de match (ex: 30% HP, seul,
+ * contre deux Pokémon pleine forme, estimé à ~30% de victoire — bien trop
+ * optimiste pour une situation généralement quasi perdue).
+ */
+const OUTNUMBERED_ALONE_PENALTY = 0.65;
+
+function sideScore(summary: SideSummary, isOutnumberedAlone: boolean): number {
+  const base = summary.aliveCount * ALIVE_COUNT_WEIGHT + summary.healthSum;
+  return isOutnumberedAlone ? base * OUTNUMBERED_ALONE_PENALTY : base;
 }
 
 /**
@@ -72,6 +86,18 @@ function sideScore(summary: SideSummary): number {
  * tant que les deux joueurs ont au moins un Pokémon en vie, pour éviter de
  * donner une fausse impression de certitude absolue tant que le match n'est
  * pas réellement terminé).
+ *
+ * LIMITE IMPORTANTE À GARDER EN TÊTE : cette fonction évalue une POSITION
+ * ISOLÉE (nombre de vivants + %HP + boosts/statut), sans aucune recherche
+ * en profondeur. C'est turnAnalyzer.ts qui simule un tour avec ses réponses
+ * adverses plausibles puis appelle cette heuristique sur le résultat — la
+ * recherche s'arrête donc à horizon 1 tour. Une action comme Calm Mind, qui
+ * ne paie vraiment qu'après plusieurs tours de boost accumulé, n'aura donc
+ * jamais un score reflétant sa VRAIE valeur à long terme : l'évaluation ne
+ * voit que l'état immédiatement après ce tour, jamais le sweep potentiel 2
+ * ou 3 tours plus tard. Une vraie recherche multi-tours (minimax/expectimax
+ * sur plusieurs plis) réglerait ça, mais représente un chantier bien plus
+ * lourd que cette heuristique — non fait ici, documenté en attendant.
  */
 export function estimateWinProbability(battle: BattleState): number {
   const p1Summary = summarizeSide(battle, 'p1');
@@ -81,8 +107,11 @@ export function estimateWinProbability(battle: BattleState): number {
   if (p1Summary.aliveCount === 0) return 0;
   if (p2Summary.aliveCount === 0) return 100;
 
-  const p1 = sideScore(p1Summary);
-  const p2 = sideScore(p2Summary);
+  const p1Outnumbered = p1Summary.aliveCount === 1 && p2Summary.aliveCount > 1;
+  const p2Outnumbered = p2Summary.aliveCount === 1 && p1Summary.aliveCount > 1;
+
+  const p1 = sideScore(p1Summary, p1Outnumbered);
+  const p2 = sideScore(p2Summary, p2Outnumbered);
   const total = p1 + p2;
   if (total === 0) return 50;
 
