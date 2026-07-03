@@ -9,6 +9,8 @@ import { estimateWinProbability } from '../search/evaluator';
 import { calculateDamage, DexLookupError } from '../damagecalc/damageCalc';
 import type { DamageCalcResult } from '../damagecalc/damageCalc';
 import { isOffensiveMove, getSetConfidence, getKnownMoves } from '../damagecalc/adapter';
+import { resolveSpriteUrl } from './pokeSprites';
+import { resolveMegaForme } from '../engine/megaStones';
 import { analyzeActionsForPosition, getBestWinExpectancyForSide } from '../search/turnAnalyzer';
 import type { ActionScore } from '../search/turnAnalyzer';
 import type { PlayerAction } from '../search/actionTypes';
@@ -268,7 +270,7 @@ function TeamCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const species = useMemo(() => parsePokePaste(team.pokepasteText).map((p) => p.species), [team.pokepasteText]);
+  const parsedSets = useMemo(() => parsePokePaste(team.pokepasteText), [team.pokepasteText]);
 
   function handleDeleteClick(e: MouseEvent) {
     e.stopPropagation();
@@ -295,11 +297,17 @@ function TeamCard({
           </button>
         </div>
       </div>
-      {species.length > 0 ? (
+      {parsedSets.length > 0 ? (
         <ul className="team-card-species-list">
-          {species.map((s, i) => (
+          {parsedSets.map((p, i) => (
             <li key={i} className="team-card-species-item">
-              {s}
+              <PokemonSprite
+                species={p.species}
+                isMegaEvolved={p.isMegaInPaste}
+                megaForme={p.isMegaInPaste && p.item ? resolveMegaForme(p.item) : null}
+                size={22}
+              />
+              {p.species}
             </li>
           ))}
         </ul>
@@ -700,6 +708,56 @@ function SideColumn({
   );
 }
 
+/**
+ * Sprite PokeAPI d'un Pokémon, avec repli sur l'espèce de base si la forme
+ * Mega demandée n'existe pas dans PokeAPI (fréquent : la plupart des Mega
+ * Evolutions de Champions sont fictives, cf. ui/pokeSprites.ts). N'affiche
+ * rien (juste un espace réservé discret) si PokeAPI n'a vraiment aucune
+ * image pour cette espèce, plutôt qu'une icône d'image cassée.
+ */
+function PokemonSprite({
+  species,
+  isMegaEvolved,
+  megaForme,
+  size = 40,
+}: {
+  species: string;
+  isMegaEvolved: boolean;
+  megaForme: string | null;
+  size?: number;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [broken, setBroken] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setUrl(null);
+    setBroken(false);
+    resolveSpriteUrl(species, isMegaEvolved, megaForme).then((resolved) => {
+      if (!cancelled) setUrl(resolved);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [species, isMegaEvolved, megaForme]);
+
+  if (!url || broken) {
+    return <div className="pokemon-sprite-placeholder" style={{ width: size, height: size }} />;
+  }
+
+  return (
+    <img
+      className="pokemon-sprite"
+      src={url}
+      alt={species}
+      width={size}
+      height={size}
+      loading="lazy"
+      onError={() => setBroken(true)}
+    />
+  );
+}
+
 function PokemonCard({ pokemon, compact }: { pokemon: PokemonState; compact?: boolean }) {
   const maxHp = pokemon.maxHp ?? 100;
   const hpPercent = pokemon.fainted ? 0 : Math.max(0, Math.min(100, (pokemon.currentHp / maxHp) * 100));
@@ -719,6 +777,12 @@ function PokemonCard({ pokemon, compact }: { pokemon: PokemonState; compact?: bo
       }`}
     >
       <div className="pokemon-card-header">
+        <PokemonSprite
+          species={pokemon.species}
+          isMegaEvolved={pokemon.isMegaEvolved}
+          megaForme={pokemon.megaForme}
+          size={compact ? 28 : 40}
+        />
         <span className="pokemon-name">{formeLabel}</span>
         <div className="header-badges">
           {pokemon.switchedInThisTurn && <span className="switch-badge">↩ entrée</span>}
@@ -1136,7 +1200,8 @@ function PositionAnalysisCard({
 
       {state.status === 'done' && state.scores.length === 0 && (
         <p className="position-analysis-empty">
-          Aucune action calculable : pas encore de move révélé pour ce Pokémon à ce tour.
+          Aucune action calculable : aucun move connu (révélé, PokéPaste, ou set deviné) pour ce
+          Pokémon à ce tour.
         </p>
       )}
 
@@ -1147,7 +1212,25 @@ function PositionAnalysisCard({
               key={i}
               className={`action-ranking-row ${best && score === best ? 'action-ranking-best' : ''}`}
             >
-              <span className="action-ranking-name">{describeActionShort(score.action, battle)}</span>
+              <span className="action-ranking-name">
+                {describeActionShort(score.action, battle)}
+                {score.action.kind === 'move' && score.action.moveSource === 'guessed' && (
+                  <span
+                    className="matchup-move-guessed-tag"
+                    title="Move pas encore vu en combat — tiré du set de référence NCP deviné pour ce Pokémon"
+                  >
+                    deviné
+                  </span>
+                )}
+                {score.action.kind === 'move' && score.action.moveSource === 'known' && (
+                  <span
+                    className="matchup-move-known-tag"
+                    title="Pas encore joué en combat, mais confirmé par ton PokéPaste"
+                  >
+                    pas encore joué
+                  </span>
+                )}
+              </span>
               <div className="action-ranking-bar-track">
                 <div
                   className="action-ranking-bar-fill"
