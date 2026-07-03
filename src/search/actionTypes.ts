@@ -53,6 +53,15 @@ export interface MoveAction {
   targetPositions: PokemonPosition[];
   willMegaEvolve: boolean;
   willTerastallize: boolean;
+  /**
+   * Fiabilité de la connaissance de ce move pour ce Pokémon, cf.
+   * damagecalc/adapter.ts::getKnownMoves : 'revealed' (déjà joué),
+   * 'known' (PokéPaste exact, pas encore joué), 'guessed' (set de
+   * référence NCP deviné). Optionnel pour ne pas casser les tests
+   * existants qui construisent des MoveAction à la main ; toujours rempli
+   * par generateMoveActions.
+   */
+  moveSource?: 'revealed' | 'known' | 'guessed';
 }
 
 /** Une action "switch" : remplacer le Pokémon actif par un autre du banc. */
