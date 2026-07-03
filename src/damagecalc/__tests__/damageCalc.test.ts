@@ -159,3 +159,87 @@ describe('calculateDamage', () => {
     expect(defenderPlusOne.maxDamage).toBeLessThan(noBoost.maxDamage);
   });
 });
+
+describe('malus de dégâts spread (-25%) — cf. calcGeneralMods du moteur vendor', () => {
+  /**
+   * Construit un battle en double avec 1 attaquant p1a et jusqu'à 2
+   * opposants (p2a toujours vivant, p2b vivant ou K.O. selon le test).
+   */
+  function setupSpreadBattle(p2bFainted: boolean) {
+    let battle = createInitialBattleState();
+    const swampert = {
+      ...createInitialPokemonState({ species: 'Swampert', side: 'p1', level: 50 }),
+      position: 'p1a' as const,
+      hasBeenSentOut: true,
+      userProvidedSet: {
+        ability: null,
+        item: null,
+        nature: 'Adamant',
+        evs: { atk: 32 },
+        ivs: {},
+        teraType: null,
+        moves: ['Earthquake'],
+      },
+    };
+    const sinistcha = {
+      ...createInitialPokemonState({ species: 'Sinistcha', side: 'p2', level: 50 }),
+      position: 'p2a' as const,
+      hasBeenSentOut: true,
+    };
+    const floette = {
+      ...createInitialPokemonState({ species: 'Floette-Eternal', side: 'p2', level: 50 }),
+      position: (p2bFainted ? null : 'p2b') as 'p2b' | null,
+      hasBeenSentOut: true,
+      fainted: p2bFainted,
+    };
+    battle = {
+      ...battle,
+      pokemonByKey: { 'p1:Swampert': swampert, 'p2:Sinistcha': sinistcha, 'p2:Floette-Eternal': floette },
+      activeByPosition: p2bFainted
+        ? { p1a: 'p1:Swampert', p2a: 'p2:Sinistcha' }
+        : { p1a: 'p1:Swampert', p2a: 'p2:Sinistcha', p2b: 'p2:Floette-Eternal' },
+    };
+    return { battle, swampert, sinistcha };
+  }
+
+  it('applique le malus -25% quand un move spread touche 2 adversaires réellement vivants', () => {
+    const { battle, swampert, sinistcha } = setupSpreadBattle(false);
+    const withMalus = calculateDamage(swampert, sinistcha, 'Earthquake', battle, 'p1');
+
+    const { battle: singleBattle } = setupSpreadBattle(true);
+    const withoutMalus = calculateDamage(swampert, sinistcha, 'Earthquake', singleBattle, 'p1');
+
+    // ~0.75x : dégâts avec malus strictement inférieurs à sans malus.
+    expect(withMalus.maxDamage).toBeLessThan(withoutMalus.maxDamage);
+    expect(withMalus.maxDamage / withoutMalus.maxDamage).toBeCloseTo(0.75, 1);
+  });
+
+  it('NE réduit PAS les dégâts d’un move spread quand un seul adversaire reste vivant sur le terrain', () => {
+    // Régression : le moteur vendor applique le malus dès que le move est
+    // "isSpread" et le format "Doubles", SANS regarder si un deuxième
+    // adversaire est réellement présent. On corrige ça dans damageCalc.ts.
+    const { battle, swampert, sinistcha } = setupSpreadBattle(true);
+    const result = calculateDamage(swampert, sinistcha, 'Earthquake', battle, 'p1');
+
+    const { battle: fullBattle } = setupSpreadBattle(false);
+    const reduced = calculateDamage(swampert, sinistcha, 'Earthquake', fullBattle, 'p1');
+
+    expect(result.maxDamage).toBeGreaterThan(reduced.maxDamage);
+  });
+
+  it('ne touche pas les moves non-spread (Flare Blitz) même en double avec 2 adversaires vivants', () => {
+    const { battle } = setupSpreadBattle(false);
+    const incineroar = {
+      ...createInitialPokemonState({ species: 'Incineroar', side: 'p1', level: 50 }),
+      position: 'p1a' as const,
+      hasBeenSentOut: true,
+    };
+    const target = battle.pokemonByKey['p2:Sinistcha'];
+
+    const withTwoTargets = calculateDamage(incineroar, target, 'Flare Blitz', battle, 'p1');
+    const { battle: singleBattle } = setupSpreadBattle(true);
+    const withOneTarget = calculateDamage(incineroar, singleBattle.pokemonByKey['p2:Sinistcha'], 'Flare Blitz', singleBattle, 'p1');
+
+    expect(withTwoTargets.maxDamage).toBe(withOneTarget.maxDamage);
+  });
+});
