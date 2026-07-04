@@ -955,6 +955,42 @@ const BOOST_STAT_LABELS: [BoostKey, string][] = [
   ['spe', 'Spe'],
 ];
 
+/** Rangée de +/- pour les 5 stats boostables, réutilisée pour l'attaquant et la cible. */
+function BoostOverrideStepper({
+  boosts,
+  onAdjust,
+}: {
+  boosts: Record<BoostKey, number>;
+  onAdjust: (key: BoostKey, delta: number) => void;
+}) {
+  return (
+    <div className="boost-override-panel">
+      {BOOST_STAT_LABELS.map(([key, label]) => (
+        <div key={key} className="boost-override-stat">
+          <span className="boost-override-label">{label}</span>
+          <button
+            className="boost-override-btn"
+            onClick={() => onAdjust(key, -1)}
+            disabled={boosts[key] <= -6}
+          >
+            −
+          </button>
+          <span className="boost-override-value">{boosts[key] > 0 ? `+${boosts[key]}` : boosts[key]}</span>
+          <button
+            className="boost-override-btn"
+            onClick={() => onAdjust(key, 1)}
+            disabled={boosts[key] >= 6}
+          >
+            +
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const ZERO_BOOSTS: Record<BoostKey, number> = { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
+
 function AttackerMoveCard({
   attacker,
   attackerSide,
@@ -968,8 +1004,10 @@ function AttackerMoveCard({
 }) {
   const defaultTargetKey = targets.find((t) => t.status === 'active')?.key ?? targets[0]?.key ?? null;
   const [selectedKey, setSelectedKey] = useState<string | null>(defaultTargetKey);
-  const [boostOverrides, setBoostOverrides] = useState<Record<BoostKey, number>>(attacker.boosts);
-  const [showBoosts, setShowBoosts] = useState(false);
+  const [attackerBoostOverrides, setAttackerBoostOverrides] = useState<Record<BoostKey, number>>(attacker.boosts);
+  const [defenderBoostOverrides, setDefenderBoostOverrides] = useState<Record<BoostKey, number>>(ZERO_BOOSTS);
+  const [showAttackerBoosts, setShowAttackerBoosts] = useState(false);
+  const [showDefenderBoosts, setShowDefenderBoosts] = useState(false);
 
   // Si la cible sélectionnée n'est plus valide (KO entretemps, tour changé...), retombe sur le défaut.
   useEffect(() => {
@@ -978,28 +1016,48 @@ function AttackerMoveCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targets, defaultTargetKey]);
 
-  // Réinitialise les stats hypothétiques aux vraies stats à chaque changement de tour/Pokémon.
+  // Réinitialise les stats hypothétiques de l'attaquant aux vraies stats à chaque changement de tour/Pokémon.
   useEffect(() => {
-    setBoostOverrides(attacker.boosts);
+    setAttackerBoostOverrides(attacker.boosts);
   }, [attacker]);
+
+  const selectedTarget = targets.find((t) => t.key === selectedKey) ?? null;
+
+  // Réinitialise les stats hypothétiques de la cible aux vraies stats à chaque changement de cible sélectionnée.
+  useEffect(() => {
+    setDefenderBoostOverrides(selectedTarget?.pokemon.boosts ?? ZERO_BOOSTS);
+  }, [selectedTarget?.key]);
 
   const confidence = useMemo(() => getSetConfidence(attacker), [attacker]);
   const moves = useMemo(() => getKnownMoves(attacker).filter((m) => isOffensiveMove(m.name)), [attacker]);
-  const selectedTarget = targets.find((t) => t.key === selectedKey) ?? null;
   const attackerLabel = attacker.nickname || attacker.species;
 
-  const isBoostOverridden = BOOST_STAT_LABELS.some(([key]) => boostOverrides[key] !== attacker.boosts[key]);
+  const isAttackerBoostOverridden = BOOST_STAT_LABELS.some(
+    ([key]) => attackerBoostOverrides[key] !== attacker.boosts[key],
+  );
   const effectiveAttacker = useMemo(
-    () => (isBoostOverridden ? { ...attacker, boosts: boostOverrides } : attacker),
-    [attacker, boostOverrides, isBoostOverridden],
+    () => (isAttackerBoostOverridden ? { ...attacker, boosts: attackerBoostOverrides } : attacker),
+    [attacker, attackerBoostOverrides, isAttackerBoostOverridden],
   );
 
-  function adjustBoost(key: BoostKey, delta: number) {
-    setBoostOverrides((prev) => ({ ...prev, [key]: Math.max(-6, Math.min(6, prev[key] + delta)) }));
+  const realDefenderBoosts = selectedTarget?.pokemon.boosts ?? ZERO_BOOSTS;
+  const isDefenderBoostOverridden = BOOST_STAT_LABELS.some(
+    ([key]) => defenderBoostOverrides[key] !== realDefenderBoosts[key],
+  );
+  const effectiveDefender = useMemo(
+    () =>
+      selectedTarget && isDefenderBoostOverridden
+        ? { ...selectedTarget.pokemon, boosts: defenderBoostOverrides }
+        : selectedTarget?.pokemon,
+    [selectedTarget, defenderBoostOverrides, isDefenderBoostOverridden],
+  );
+
+  function adjustAttackerBoost(key: BoostKey, delta: number) {
+    setAttackerBoostOverrides((prev) => ({ ...prev, [key]: Math.max(-6, Math.min(6, prev[key] + delta)) }));
   }
 
-  function resetBoosts() {
-    setBoostOverrides(attacker.boosts);
+  function adjustDefenderBoost(key: BoostKey, delta: number) {
+    setDefenderBoostOverrides((prev) => ({ ...prev, [key]: Math.max(-6, Math.min(6, prev[key] + delta)) }));
   }
 
   return (
@@ -1026,54 +1084,60 @@ function AttackerMoveCard({
         <p className="attacker-move-card-empty">Aucune cible adverse connue.</p>
       )}
 
-      <button className="boost-override-toggle" onClick={() => setShowBoosts((v) => !v)}>
-        {showBoosts ? '▾' : '▸'} Stats hypothétiques
-        {isBoostOverridden && <span className="boost-override-active-dot" title="Stats modifiées par rapport au vrai combat" />}
+      <button className="boost-override-toggle" onClick={() => setShowAttackerBoosts((v) => !v)}>
+        {showAttackerBoosts ? '▾' : '▸'} Stats hypothétiques ({attackerLabel})
+        {isAttackerBoostOverridden && (
+          <span className="boost-override-active-dot" title="Stats modifiées par rapport au vrai combat" />
+        )}
       </button>
-
-      {showBoosts && (
-        <div className="boost-override-panel">
-          {BOOST_STAT_LABELS.map(([key, label]) => (
-            <div key={key} className="boost-override-stat">
-              <span className="boost-override-label">{label}</span>
-              <button
-                className="boost-override-btn"
-                onClick={() => adjustBoost(key, -1)}
-                disabled={boostOverrides[key] <= -6}
-              >
-                −
-              </button>
-              <span className="boost-override-value">
-                {boostOverrides[key] > 0 ? `+${boostOverrides[key]}` : boostOverrides[key]}
-              </span>
-              <button
-                className="boost-override-btn"
-                onClick={() => adjustBoost(key, 1)}
-                disabled={boostOverrides[key] >= 6}
-              >
-                +
-              </button>
-            </div>
-          ))}
-          {isBoostOverridden && (
-            <button className="boost-override-reset" onClick={resetBoosts}>
+      {showAttackerBoosts && (
+        <>
+          <BoostOverrideStepper boosts={attackerBoostOverrides} onAdjust={adjustAttackerBoost} />
+          {isAttackerBoostOverridden && (
+            <button
+              className="boost-override-reset"
+              onClick={() => setAttackerBoostOverrides(attacker.boosts)}
+            >
               Réinitialiser
             </button>
           )}
-        </div>
+        </>
+      )}
+
+      {selectedTarget && (
+        <>
+          <button className="boost-override-toggle" onClick={() => setShowDefenderBoosts((v) => !v)}>
+            {showDefenderBoosts ? '▾' : '▸'} Stats hypothétiques (cible)
+            {isDefenderBoostOverridden && (
+              <span className="boost-override-active-dot" title="Stats modifiées par rapport au vrai combat" />
+            )}
+          </button>
+          {showDefenderBoosts && (
+            <>
+              <BoostOverrideStepper boosts={defenderBoostOverrides} onAdjust={adjustDefenderBoost} />
+              {isDefenderBoostOverridden && (
+                <button
+                  className="boost-override-reset"
+                  onClick={() => setDefenderBoostOverrides(realDefenderBoosts)}
+                >
+                  Réinitialiser
+                </button>
+              )}
+            </>
+          )}
+        </>
       )}
 
       {moves.length === 0 && <p className="attacker-move-card-empty">Aucun move offensif connu pour l'instant.</p>}
 
-      {selectedTarget && moves.length > 0 && (
+      {selectedTarget && effectiveDefender && moves.length > 0 && (
         <div className="attacker-move-list">
           {moves.map((m) => (
             <MoveDamageRow
               key={m.name}
               moveName={m.name}
-              moveSource={m.source}
               attacker={effectiveAttacker}
-              defender={selectedTarget.pokemon}
+              defender={effectiveDefender}
               attackerSide={attackerSide}
               battle={battle}
             />
@@ -1084,17 +1148,15 @@ function AttackerMoveCard({
   );
 }
 
-/** Une ligne "NomDuMove — X% – Y%" au sein d'une AttackerMoveCard, avec badge si le move n'est pas confirmé en combat. */
+/** Une ligne "NomDuMove — X% – Y%" au sein d'une AttackerMoveCard. */
 function MoveDamageRow({
   moveName,
-  moveSource,
   attacker,
   defender,
   attackerSide,
   battle,
 }: {
   moveName: string;
-  moveSource: 'revealed' | 'known' | 'guessed';
   attacker: PokemonState;
   defender: PokemonState;
   attackerSide: 'p1' | 'p2';
@@ -1111,28 +1173,10 @@ function MoveDamageRow({
   }, [attacker, defender, moveName, battle, attackerSide]);
 
   return (
-    <div className={`move-damage-row ${moveSource === 'guessed' ? 'move-damage-row-guessed' : ''}`}>
-      <span className="move-damage-row-name">
-        {moveName}
-        {moveSource === 'guessed' && (
-          <span
-            className="matchup-move-guessed-tag"
-            title="Move pas encore vu en combat — tiré du set de référence NCP deviné pour ce Pokémon"
-          >
-            deviné
-          </span>
-        )}
-        {moveSource === 'known' && (
-          <span
-            className="matchup-move-known-tag"
-            title="Pas encore joué en combat, mais confirmé par ton PokéPaste"
-          >
-            pas encore joué
-          </span>
-        )}
-      </span>
+    <div className="move-damage-row">
+      <span className="move-damage-row-name">{moveName}</span>
       {outcome.status === 'ok' ? (
-        <span className="move-damage-row-result">
+        <>
           <span className="move-damage-row-bar-track">
             <span
               className="move-damage-row-bar-fill"
@@ -1141,9 +1185,9 @@ function MoveDamageRow({
           </span>
           <span className="move-damage-row-percent">
             {outcome.result.minPercent}% – {outcome.result.maxPercent}%
-            {outcome.result.maxPercent >= 100 && <span className="matchup-ko-tag"> KO possible</span>}
+            {outcome.result.maxPercent >= 100 && <span className="matchup-ko-tag"> KO</span>}
           </span>
-        </span>
+        </>
       ) : (
         <span className="move-damage-row-unsupported">{outcome.message}</span>
       )}
@@ -1294,25 +1338,7 @@ function PositionAnalysisCard({
               key={i}
               className={`action-ranking-row ${best && score === best ? 'action-ranking-best' : ''}`}
             >
-              <span className="action-ranking-name">
-                {describeActionShort(score.action, battle)}
-                {score.action.kind === 'move' && score.action.moveSource === 'guessed' && (
-                  <span
-                    className="matchup-move-guessed-tag"
-                    title="Move pas encore vu en combat — tiré du set de référence NCP deviné pour ce Pokémon"
-                  >
-                    deviné
-                  </span>
-                )}
-                {score.action.kind === 'move' && score.action.moveSource === 'known' && (
-                  <span
-                    className="matchup-move-known-tag"
-                    title="Pas encore joué en combat, mais confirmé par ton PokéPaste"
-                  >
-                    pas encore joué
-                  </span>
-                )}
-              </span>
+              <span className="action-ranking-name">{describeActionShort(score.action, battle)}</span>
               <div className="action-ranking-bar-track">
                 <div
                   className="action-ranking-bar-fill"
