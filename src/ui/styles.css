@@ -921,59 +921,21 @@ body {
 }
 
 .move-damage-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 96px 1fr 80px;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   font-size: 0.78rem;
-}
-
-.move-damage-row-guessed .move-damage-row-name {
-  color: #ffdf9e;
 }
 
 .move-damage-row-name {
   color: #ccc;
-  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.matchup-move-guessed-tag,
-.matchup-move-known-tag {
-  display: inline-block;
-  margin-left: 5px;
-  font-size: 0.62rem;
-  font-style: normal;
-  border-radius: 999px;
-  padding: 1px 6px;
-  cursor: help;
-  vertical-align: middle;
-}
-
-.matchup-move-guessed-tag {
-  color: #ffdf9e;
-  background: #3a301d;
-  border: 1px solid #7a6430;
-}
-
-.matchup-move-known-tag {
-  color: #9ec9ff;
-  background: #1d2a3a;
-  border: 1px solid #305a7a;
-}
-
-.move-damage-row-result {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-  justify-content: flex-end;
-}
-
 .move-damage-row-bar-track {
-  flex: 1;
-  max-width: 70px;
   height: 6px;
   border-radius: 3px;
   background: #2a2e3a;
@@ -990,13 +952,14 @@ body {
 .move-damage-row-percent {
   color: #aaa;
   white-space: nowrap;
-  flex-shrink: 0;
+  text-align: right;
 }
 
 .move-damage-row-unsupported {
   color: #666;
   font-size: 0.7rem;
   font-style: italic;
+  grid-column: 2 / span 2;
 }
 
 .matchup-ko-tag {
