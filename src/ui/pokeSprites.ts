@@ -15,7 +15,11 @@
  * elle-même ("cache aggressively, the data is static").
  */
 
-const SPRITE_CACHE_STORAGE_KEY = 'winscope_sprite_cache_v1';
+// v2 : la v1 pouvait mettre en cache pour toujours un échec transitoire
+// (rate limit PokeAPI) comme si le sprite n'existait pas — changement de
+// clé pour repartir d'un cache propre plutôt que de migrer les entrées
+// potentiellement corrompues des utilisateurs déjà passés par la v1.
+const SPRITE_CACHE_STORAGE_KEY = 'winscope_sprite_cache_v2';
 
 interface SpriteSet {
   officialArtwork: string | null;
@@ -45,6 +49,38 @@ function persistCacheEntry(slug: string, spriteSet: SpriteSet): void {
 
 const memoryCache = new Map<string, SpriteSet>();
 const inFlightRequests = new Map<string, Promise<SpriteSet>>();
+
+/**
+ * Limite le nombre de requêtes PokeAPI simultanées : au chargement d'une
+ * page (équipe de 6 + Pokémon actifs/banc des deux côtés + scène de
+ * combat), on peut demander 15-20 sprites différents d'un coup — sans
+ * limite, cette rafale déclenche facilement le rate-limit de PokeAPI, dont
+ * les échecs étaient (avant ce correctif) mis en cache pour toujours par
+ * erreur (cf. plus bas). Une file d'attente simple suffit à éviter la
+ * rafale sans vraiment ralentir le chargement perçu.
+ */
+const MAX_CONCURRENT_REQUESTS = 4;
+let activeRequestCount = 0;
+const requestQueue: (() => void)[] = [];
+
+async function acquireRequestSlot(): Promise<void> {
+  if (activeRequestCount < MAX_CONCURRENT_REQUESTS) {
+    activeRequestCount++;
+    return;
+  }
+  return new Promise((resolve) => {
+    requestQueue.push(() => {
+      activeRequestCount++;
+      resolve();
+    });
+  });
+}
+
+function releaseRequestSlot(): void {
+  activeRequestCount--;
+  const next = requestQueue.shift();
+  if (next) next();
+}
 
 /**
  * Table d'exceptions pour les espèces dont le nom Showdown/notre dex ne
@@ -128,9 +164,24 @@ async function fetchSpriteSetForSlug(slug: string): Promise<SpriteSet> {
   if (existing) return existing;
 
   const request = (async (): Promise<SpriteSet> => {
+    await acquireRequestSlot();
     try {
       const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${slug}`);
-      if (!res.ok) throw new Error(`PokeAPI ${res.status} pour "${slug}"`);
+      if (res.status === 404) {
+        // Confirmé : cette espèce/forme n'existe vraiment pas dans PokeAPI
+        // (ex: une Mega fictive de Champions) — sûr de mettre en cache
+        // durablement, ce cas ne changera jamais.
+        memoryCache.set(slug, EMPTY_SPRITE_SET);
+        persistCacheEntry(slug, EMPTY_SPRITE_SET);
+        return EMPTY_SPRITE_SET;
+      }
+      if (!res.ok) {
+        // Échec probablement TRANSITOIRE (rate limit 429, 5xx, etc.) : on ne
+        // met PAS en cache, pour que le prochain appel retente au lieu de
+        // rester bloqué sur "pas de sprite" indéfiniment (y compris après
+        // un rechargement de page, puisque le cache est persisté).
+        throw new Error(`PokeAPI ${res.status} pour "${slug}"`);
+      }
       const data = await res.json();
       const spriteSet: SpriteSet = {
         officialArtwork: data?.sprites?.other?.['official-artwork']?.front_default ?? null,
@@ -141,10 +192,11 @@ async function fetchSpriteSetForSlug(slug: string): Promise<SpriteSet> {
       persistCacheEntry(slug, spriteSet);
       return spriteSet;
     } catch {
-      memoryCache.set(slug, EMPTY_SPRITE_SET);
-      persistCacheEntry(slug, EMPTY_SPRITE_SET);
+      // Erreur réseau ou échec transitoire : ne PAS mettre en cache (cf.
+      // commentaire ci-dessus), juste retourner vide pour cette tentative.
       return EMPTY_SPRITE_SET;
     } finally {
+      releaseRequestSlot();
       inFlightRequests.delete(slug);
     }
   })();
