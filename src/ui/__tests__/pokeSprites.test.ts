@@ -95,6 +95,42 @@ describe('resolveSpriteUrl', () => {
     const url = await resolveSpriteUrl('Definitely Not A Pokemon', false, null);
     expect(url).toBeNull();
   });
+
+  it('ne met PAS en cache un échec transitoire (rate limit 429) : un appel suivant retente au lieu de rester bloqué', async () => {
+    let callCount = 0;
+    const fetchMock = vi.fn().mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve({ ok: false, status: 429 });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          sprites: { other: { 'official-artwork': { front_default: 'https://example.com/incineroar.png' } } },
+        }),
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { resolveSpriteUrl } = await import('../pokeSprites');
+
+    const firstAttempt = await resolveSpriteUrl('Incineroar', false, null);
+    expect(firstAttempt).toBeNull(); // rate-limited la première fois
+
+    const secondAttempt = await resolveSpriteUrl('Incineroar', false, null);
+    expect(secondAttempt).toBe('https://example.com/incineroar.png'); // retente avec succès, pas bloqué par un faux cache
+    expect(callCount).toBe(2);
+  });
+
+  it('met en cache durablement un 404 confirmé (contrairement à un échec transitoire)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 404 });
+    vi.stubGlobal('fetch', fetchMock);
+    const { resolveSpriteUrl } = await import('../pokeSprites');
+
+    await resolveSpriteUrl('Definitely Not A Pokemon', false, null);
+    await resolveSpriteUrl('Definitely Not A Pokemon', false, null);
+    // Un vrai 404 est mis en cache : un seul appel réseau pour les deux résolutions.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('resolveBattleSprites', () => {
