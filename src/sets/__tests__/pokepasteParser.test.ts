@@ -124,6 +124,27 @@ describe('parsePokePaste', () => {
     expect(floette.species).toBe('Floette-Eternal');
     expect(floette.isMegaInPaste).toBe(false);
   });
+
+  it('traduit un nom d’espèce français vers l’anglais (ex: Tortank -> Blastoise)', () => {
+    const [blastoise] = parsePokePaste('Tortank-Mega @ Blastoisinite\nAbility: Torrent\n- Hydro Pump');
+    expect(blastoise.species).toBe('Blastoise');
+    expect(blastoise.isMegaInPaste).toBe(true);
+  });
+
+  it('traduit sans tenir compte des accents ni de la casse (ex: "ptera" -> Aerodactyl)', () => {
+    const [aerodactyl] = parsePokePaste('ptera @ Choice Band\nAbility: Rock Head\n- Rock Slide');
+    expect(aerodactyl.species).toBe('Aerodactyl');
+  });
+
+  it('traduit un nom français composé (ex: Tyranocif -> Tyranitar)', () => {
+    const [tyranitar] = parsePokePaste('Tyranocif @ Assault Vest\nAbility: Sand Stream\n- Rock Slide');
+    expect(tyranitar.species).toBe('Tyranitar');
+  });
+
+  it('laisse un nom déjà anglais inchangé (pas de fausse traduction)', () => {
+    const [incineroar] = parsePokePaste('Incineroar @ Sitrus Berry\nAbility: Intimidate\n- Flare Blitz');
+    expect(incineroar.species).toBe('Incineroar');
+  });
 });
 
 describe('toPartialPokemonSet', () => {
