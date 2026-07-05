@@ -284,13 +284,13 @@ describe('résolution de forme Mega — présomption avant confirmation par le r
     expect(vendor.name).toBe('Aerodactyl');
   });
 
-  it('n’assume PAS la Mega Evolution pour Banette même avec la Banettite révélée', () => {
-    const banette = withRevealed(createInitialPokemonState({ species: 'Banette', side: 'p1', level: 50 }), {
-      revealedItem: 'Banettite',
+  it('n’assume PAS la Mega Evolution pour Sableye même avec la Sablenite révélée', () => {
+    const sableye = withRevealed(createInitialPokemonState({ species: 'Sableye', side: 'p1', level: 50 }), {
+      revealedItem: 'Sablenite',
       isMegaEvolved: false,
     });
-    const vendor = buildVendorPokemon(banette);
-    expect(vendor.name).toBe('Banette');
+    const vendor = buildVendorPokemon(sableye);
+    expect(vendor.name).toBe('Sableye');
   });
 
   it('utilise la forme Mega confirmée normalement (isMegaEvolved: true), peu importe l’espèce', () => {
