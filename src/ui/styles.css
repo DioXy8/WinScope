@@ -437,6 +437,156 @@ body {
   }
 }
 
+.battle-stage {
+  background: linear-gradient(180deg, #2a4d6e 0%, #1a3348 45%, #2d4a2f 45%, #253d27 100%);
+  border: 1px solid #2a2e3a;
+  border-radius: 12px;
+  padding: 20px 16px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  min-height: 280px;
+  overflow: hidden;
+}
+
+.battle-stage-weather-banner {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 0.72rem;
+  padding: 3px 12px;
+  border-radius: 999px;
+  z-index: 2;
+}
+
+.battle-stage-weather-rain {
+  background: linear-gradient(180deg, #1c3d5e 0%, #14283d 45%, #223a24 45%, #1c2e1e 100%);
+}
+
+.battle-stage-weather-sun,
+.battle-stage-weather-harshsun {
+  background: linear-gradient(180deg, #6e5a2a 0%, #4d3f1a 45%, #3d4a1f 45%, #2e3a17 100%);
+}
+
+.battle-stage-weather-sand {
+  background: linear-gradient(180deg, #6e5a3d 0%, #4d3f2a 45%, #4a3d24 45%, #3a2e1c 100%);
+}
+
+.battle-stage-weather-snow {
+  background: linear-gradient(180deg, #4a5d6e 0%, #33414d 45%, #3d4a3f 45%, #2e3a30 100%);
+}
+
+.battle-stage-row {
+  display: flex;
+  justify-content: space-evenly;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.battle-stage-row-top {
+  align-items: flex-start;
+}
+
+.battle-stage-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 90px;
+}
+
+.battle-stage-row-top .battle-stage-slot {
+  flex-direction: column;
+}
+
+.battle-stage-slot-fainted {
+  opacity: 0.35;
+}
+
+.battle-stage-info-box {
+  background: rgba(10, 12, 18, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 5px 8px;
+  min-width: 100px;
+  text-align: center;
+}
+
+.battle-stage-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin-bottom: 3px;
+}
+
+.battle-stage-name {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
+}
+
+.battle-stage-hp-track {
+  height: 5px;
+  margin-bottom: 2px;
+}
+
+.battle-stage-hp-text {
+  font-size: 0.62rem;
+  color: #ccc;
+}
+
+.battle-stage-boosts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
+  margin-top: 3px;
+}
+
+.battle-stage-sprite {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.4));
+}
+
+.battle-stage-sprite-back {
+  width: 88px;
+  height: 88px;
+}
+
+.battle-stage-sprite-placeholder {
+  width: 72px;
+  height: 72px;
+}
+
+@media (max-width: 700px) {
+  .battle-stage {
+    padding: 12px 8px;
+    gap: 16px;
+  }
+
+  .battle-stage-sprite {
+    width: 52px;
+    height: 52px;
+  }
+
+  .battle-stage-sprite-back {
+    width: 64px;
+    height: 64px;
+  }
+}
+
 .scrubber {
   display: flex;
   align-items: center;
@@ -960,11 +1110,6 @@ body {
   font-size: 0.7rem;
   font-style: italic;
   grid-column: 2 / span 2;
-}
-
-.matchup-ko-tag {
-  color: #ff6b6b;
-  font-weight: 700;
 }
 
 .matchups-columns {
