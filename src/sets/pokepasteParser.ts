@@ -19,6 +19,7 @@
 
 import type { PartialPokemonSet } from '../engine/state';
 import type { StatId } from '../replay/types';
+import frenchSpeciesNames from './data/frenchSpeciesNames.json';
 
 const STAT_ABBREVIATIONS: Record<string, StatId | 'hp'> = {
   hp: 'hp',
@@ -91,8 +92,36 @@ const SPECIES_ALIASES: Record<string, string> = {
   Floette: 'Floette-Eternal',
 };
 
+const FRENCH_TO_ENGLISH: Record<string, string> = frenchSpeciesNames;
+
+/** Normalise un texte pour la recherche FR : minuscules + accents retirés (ex: "Ptéra" et "ptera" doivent matcher). */
+function stripAccentsLowercase(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+/**
+ * Traduit un nom d'espèce français vers son équivalent anglais (celui
+ * utilisé par Showdown et notre dex), insensible aux accents/casse — un
+ * joueur pressé tape souvent "ptera" plutôt que "Ptéra". Retourne le nom
+ * tel quel s'il n'est pas reconnu comme un nom français connu (ex: déjà en
+ * anglais, ou espèce absente de la table — dans ce cas la suite du pipeline
+ * échouera normalement à trouver l'espèce, ce qui est correct : mieux vaut
+ * échouer franchement que de deviner à tort).
+ *
+ * Table générée depuis le paquet npm "pokemon" (sindresorhus/pokemon,
+ * data/{en,fr}.json), qui couvre les 1025 espèces jusqu'à la Gen 9 avec
+ * leurs noms français officiels.
+ */
+function translateFrenchSpeciesName(species: string): string {
+  return FRENCH_TO_ENGLISH[stripAccentsLowercase(species)] ?? species;
+}
+
 function applySpeciesAlias(species: string): string {
-  return SPECIES_ALIASES[species] ?? species;
+  const translated = translateFrenchSpeciesName(species);
+  return SPECIES_ALIASES[translated] ?? translated;
 }
 
 /** Retire le suffixe "-Mega"/"-Mega-X"/"-Mega-Y" d'un nom d'espèce, comme parsePokemonDetails. */
