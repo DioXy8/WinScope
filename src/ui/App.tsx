@@ -9,7 +9,7 @@ import { estimateWinProbability } from '../search/evaluator';
 import { calculateDamage, DexLookupError } from '../damagecalc/damageCalc';
 import type { DamageCalcResult } from '../damagecalc/damageCalc';
 import { isOffensiveMove, isSpreadMove, getSetConfidence, getKnownMoves, resolveDexName } from '../damagecalc/adapter';
-import { resolveSpriteUrl } from './pokeSprites';
+import { resolveSpriteUrl, resolveBattleSprites } from './pokeSprites';
 import { resolveMegaForme } from '../engine/megaStones';
 import { analyzeActionsForPosition, getBestWinExpectancyForSide } from '../search/turnAnalyzer';
 import type { ActionScore } from '../search/turnAnalyzer';
@@ -39,6 +39,8 @@ type LoadState =
       p2Name: string;
       /** Côté identifié comme celui de l'utilisateur d'après son PokéPaste, si trouvé. */
       userSide: 'p1' | 'p2' | null;
+      /** Id du replay Showdown (ex: "gen9vgc2026regmb-1234567890"), pour l'iframe du replay officiel. */
+      replayId: string;
     };
 
 /** Écran affiché : liste des équipes, formulaire d'ajout/édition, ou analyse de replay. */
@@ -123,7 +125,15 @@ export default function App() {
       const { states, match } = applyUserPokePasteToStates(rawStates, parsedActiveTeam);
       const p1Name = parsed.players.find((p) => p.side === 'p1')?.username ?? 'Joueur 1';
       const p2Name = parsed.players.find((p) => p.side === 'p2')?.username ?? 'Joueur 2';
-      setState({ status: 'success', states, parsedReplay: parsed, p1Name, p2Name, userSide: match.side });
+      setState({
+        status: 'success',
+        states,
+        parsedReplay: parsed,
+        p1Name,
+        p2Name,
+        userSide: match.side,
+        replayId: raw.id,
+      });
       setTurnIndex(0);
     } catch (err) {
       const message =
@@ -200,6 +210,7 @@ export default function App() {
               parsedReplay={state.parsedReplay}
               p1Name={state.p1Name}
               p2Name={state.p2Name}
+              userSide={state.userSide}
               turnIndex={turnIndex}
               onTurnChange={setTurnIndex}
             />
@@ -404,11 +415,130 @@ function ActiveTeamBadge({
   );
 }
 
+/**
+ * Intègre le vrai replay animé Showdown via iframe (option choisie :
+ * simplicité et fidélité au vrai client plutôt qu'une synchronisation avec
+ * notre scrubber — les deux lecteurs restent indépendants). Repliable pour
+ * ceux qui préfèrent se concentrer sur l'analyse seule.
+ */
+/**
+ * Scène de combat "maison", construite à partir de nos propres données
+ * (BattleState + sprites PokeAPI) plutôt qu'un iframe externe — donc
+ * automatiquement synchronisée avec le scrubber de tours, contrairement à
+ * un lecteur de replay Showdown embarqué séparément. Pas d'animations de
+ * moves façon vrai client (pas de son, pas d'effets de coup), mais un vrai
+ * rendu du terrain qui bouge avec la navigation existante.
+ */
+function BattleStage({
+  battle,
+  userSide,
+}: {
+  battle: BattleState;
+  userSide: 'p1' | 'p2' | null;
+}) {
+  const p1Active = getActivePokemon(battle, 'p1');
+  const p2Active = getActivePokemon(battle, 'p2');
+
+  // Ton camp (détecté via le PokéPaste) est toujours vu de dos, en bas —
+  // comme quand tu joues vraiment. Si le camp n'a pas pu être détecté, p1
+  // reste en bas par défaut (convention déjà utilisée ailleurs dans l'UI).
+  const bottomSide = userSide ?? 'p1';
+  const topSide = bottomSide === 'p1' ? 'p2' : 'p1';
+  const topActive = topSide === 'p1' ? p1Active : p2Active;
+  const bottomActive = bottomSide === 'p1' ? p1Active : p2Active;
+
+  const { field } = battle;
+  const weatherClass = field.weather ? `battle-stage-weather-${field.weather}` : '';
+
+  return (
+    <div className={`battle-stage ${weatherClass}`}>
+      {field.weather && <div className="battle-stage-weather-banner">{weatherLabel(field.weather)}</div>}
+      <div className="battle-stage-row battle-stage-row-top">
+        {topActive.map((p) => (
+          <BattleStageSlot key={p.species} pokemon={p} facing="front" />
+        ))}
+      </div>
+      <div className="battle-stage-row battle-stage-row-bottom">
+        {bottomActive.map((p) => (
+          <BattleStageSlot key={p.species} pokemon={p} facing="back" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BattleStageSlot({ pokemon, facing }: { pokemon: PokemonState; facing: 'front' | 'back' }) {
+  const [sprites, setSprites] = useState<{ front: string | null; back: string | null }>({
+    front: null,
+    back: null,
+  });
+  const assumedDexName = resolveDexName(pokemon);
+  const isMega = assumedDexName !== pokemon.species;
+
+  useEffect(() => {
+    let cancelled = false;
+    resolveBattleSprites(pokemon.species, isMega, isMega ? assumedDexName : null).then((resolved) => {
+      if (!cancelled) setSprites(resolved);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pokemon.species, isMega, assumedDexName]);
+
+  const spriteUrl = facing === 'back' ? (sprites.back ?? sprites.front) : (sprites.front ?? sprites.back);
+  const maxHp = pokemon.maxHp ?? 100;
+  const hpPercent = pokemon.fainted ? 0 : Math.max(0, Math.min(100, (pokemon.currentHp / maxHp) * 100));
+  const hpColorClass = hpPercent > 50 ? 'hp-high' : hpPercent > 20 ? 'hp-mid' : 'hp-low';
+  const label = pokemon.nickname || pokemon.species;
+  const boostEntries = (Object.entries(pokemon.boosts) as [string, number][]).filter(([, v]) => v !== 0);
+
+  return (
+    <div className={`battle-stage-slot ${pokemon.fainted ? 'battle-stage-slot-fainted' : ''}`}>
+      <div className="battle-stage-info-box">
+        <div className="battle-stage-name-row">
+          <span className="battle-stage-name">{label}</span>
+          {pokemon.status && <span className={`status-badge status-${pokemon.status}`}>{pokemon.status}</span>}
+        </div>
+        <div className="hp-bar-track battle-stage-hp-track">
+          <div className={`hp-bar-fill ${hpColorClass}`} style={{ width: `${hpPercent}%` }} />
+        </div>
+        <div className="battle-stage-hp-text">
+          {pokemon.fainted
+            ? 'KO'
+            : pokemon.hpIsPercentage
+              ? `${Math.round(hpPercent)}%`
+              : `${pokemon.currentHp}/${maxHp}`}
+        </div>
+        {boostEntries.length > 0 && (
+          <div className="battle-stage-boosts">
+            {boostEntries.map(([stat, value]) => (
+              <span key={stat} className={`boost-chip ${value > 0 ? 'boost-up' : 'boost-down'}`}>
+                {stat.toUpperCase()} {value > 0 ? `+${value}` : value}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      {spriteUrl ? (
+        <img
+          className={`battle-stage-sprite ${facing === 'back' ? 'battle-stage-sprite-back' : ''}`}
+          src={spriteUrl}
+          alt={label}
+          loading="lazy"
+        />
+      ) : (
+        <div className="battle-stage-sprite-placeholder" />
+      )}
+    </div>
+  );
+}
+
 function BattleExplorer({
   states,
   parsedReplay,
   p1Name,
   p2Name,
+  userSide,
   turnIndex,
   onTurnChange,
 }: {
@@ -416,6 +546,7 @@ function BattleExplorer({
   parsedReplay: ParsedReplayLog;
   p1Name: string;
   p2Name: string;
+  userSide: 'p1' | 'p2' | null;
   turnIndex: number;
   onTurnChange: (index: number) => void;
 }) {
@@ -473,6 +604,7 @@ function BattleExplorer({
     <div className="explorer-layout">
       <VerticalWinBar p1Name={p1Name} p2Name={p2Name} p1Percent={currentWinP1} />
       <section className="explorer">
+        <BattleStage battle={current} userSide={userSide} />
         <div className="scrubber">
         <button
           className="scrubber-btn"
@@ -1185,7 +1317,6 @@ function MoveDamageRow({
           </span>
           <span className="move-damage-row-percent">
             {outcome.result.minPercent}% – {outcome.result.maxPercent}%
-            {outcome.result.maxPercent >= 100 && <span className="matchup-ko-tag"> KO</span>}
           </span>
         </>
       ) : (
