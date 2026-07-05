@@ -431,21 +431,15 @@ function ActiveTeamBadge({
  */
 function BattleStage({
   battle,
-  userSide,
+  p1Name,
+  p2Name,
 }: {
   battle: BattleState;
-  userSide: 'p1' | 'p2' | null;
+  p1Name: string;
+  p2Name: string;
 }) {
   const p1Active = getActivePokemon(battle, 'p1');
   const p2Active = getActivePokemon(battle, 'p2');
-
-  // Ton camp (détecté via le PokéPaste) est toujours vu de dos, en bas —
-  // comme quand tu joues vraiment. Si le camp n'a pas pu être détecté, p1
-  // reste en bas par défaut (convention déjà utilisée ailleurs dans l'UI).
-  const bottomSide = userSide ?? 'p1';
-  const topSide = bottomSide === 'p1' ? 'p2' : 'p1';
-  const topActive = topSide === 'p1' ? p1Active : p2Active;
-  const bottomActive = bottomSide === 'p1' ? p1Active : p2Active;
 
   const { field } = battle;
   const weatherClass = field.weather ? `battle-stage-weather-${field.weather}` : '';
@@ -453,16 +447,18 @@ function BattleStage({
   return (
     <div className={`battle-stage ${weatherClass}`}>
       {field.weather && <div className="battle-stage-weather-banner">{weatherLabel(field.weather)}</div>}
+      <div className="battle-stage-side-label battle-stage-side-label-top">{p1Name}</div>
       <div className="battle-stage-row battle-stage-row-top">
-        {topActive.map((p) => (
+        {p1Active.map((p) => (
           <BattleStageSlot key={p.species} pokemon={p} facing="front" />
         ))}
       </div>
       <div className="battle-stage-row battle-stage-row-bottom">
-        {bottomActive.map((p) => (
+        {p2Active.map((p) => (
           <BattleStageSlot key={p.species} pokemon={p} facing="back" />
         ))}
       </div>
+      <div className="battle-stage-side-label battle-stage-side-label-bottom">{p2Name}</div>
     </div>
   );
 }
@@ -604,7 +600,7 @@ function BattleExplorer({
     <div className="explorer-layout">
       <VerticalWinBar p1Name={p1Name} p2Name={p2Name} p1Percent={currentWinP1} />
       <section className="explorer">
-        <BattleStage battle={current} userSide={userSide} />
+        <BattleStage battle={current} p1Name={p1Name} p2Name={p2Name} />
         <div className="scrubber">
         <button
           className="scrubber-btn"
@@ -694,15 +690,21 @@ function VerticalWinBar({
   p2Name: string;
   p1Percent: number;
 }) {
-  const p2Percent = 100 - p1Percent;
+  // Arrondi une seule fois ici : p1Percent peut arriver avec une décimale
+  // (issu de l'analyse de tour, ex: 67.6) — sans cet arrondi, `100 - 67.6`
+  // produit un artefact de virgule flottante classique en JS
+  // (32.400000000000006 au lieu de 32.4). Dériver p2 du p1 déjà arrondi
+  // garantit un affichage propre des deux côtés.
+  const roundedP1 = Math.round(p1Percent);
+  const p2Percent = 100 - roundedP1;
   return (
     <div className="vertical-winbar">
       <div className="vertical-winbar-label">
-        <span className="vertical-winbar-percent vertical-winbar-percent-p1">{p1Percent}%</span>
+        <span className="vertical-winbar-percent vertical-winbar-percent-p1">{roundedP1}%</span>
         <span className="vertical-winbar-name">{p1Name}</span>
       </div>
       <div className="vertical-winbar-track">
-        <div className="vertical-winbar-fill-p1" style={{ flexGrow: p1Percent }} />
+        <div className="vertical-winbar-fill-p1" style={{ flexGrow: roundedP1 }} />
         <div className="vertical-winbar-fill-p2" style={{ flexGrow: p2Percent }} />
       </div>
       <div className="vertical-winbar-label">
@@ -1016,10 +1018,31 @@ const TARGET_STATUS_ORDER: Record<KnownTarget['status'], number> = { active: 0, 
  * jamais confondre un Pokémon réellement sur le terrain avec une simple
  * possibilité de Team Preview.
  */
+/** Format Reg M-B : 6 Pokémon annoncés en Team Preview, mais seulement 4 réellement amenés en combat par côté. */
+const MAX_TEAM_SIZE = 4;
+
+/**
+ * Tous les Pokémon vivants connus d'un côté, utilisables comme cible pour
+ * un calcul de dégâts — y compris ceux annoncés en Team Preview mais
+ * jamais encore envoyés sur le terrain (utile pour anticiper : "si Untel
+ * arrive, qu'est-ce que je lui fais ?"), avec un statut explicite pour ne
+ * jamais confondre un Pokémon réellement sur le terrain avec une simple
+ * possibilité de Team Preview.
+ *
+ * Une fois que 4 Pokémon RÉELLEMENT envoyés (hasBeenSentOut) ont été vus
+ * pour ce côté, l'équipe réelle est complète (Reg M-B n'en amène jamais
+ * plus) : les entrées "jamais envoyées" restantes sont alors des fantômes
+ * de Team Preview garantis ne jamais apparaître, et sont exclues plutôt
+ * que de rester indéfiniment proposées comme "pas encore vu".
+ */
 function getKnownTargets(battle: BattleState, side: 'p1' | 'p2'): KnownTarget[] {
   const activeKeys = new Set(Object.values(battle.activeByPosition));
-  return Object.entries(battle.pokemonByKey)
-    .filter(([, p]) => p.side === side && !p.fainted)
+  const sidePokemon = Object.entries(battle.pokemonByKey).filter(([, p]) => p.side === side && !p.fainted);
+  const sentOutCount = sidePokemon.filter(([, p]) => p.hasBeenSentOut).length;
+  const rosterFull = sentOutCount >= MAX_TEAM_SIZE;
+
+  return sidePokemon
+    .filter(([, p]) => p.hasBeenSentOut || !rosterFull)
     .map(([key, p]) => ({
       key,
       pokemon: p,
@@ -1490,18 +1513,51 @@ function PositionAnalysisCard({
   );
 }
 
-/** Une action observée dans le replay pour ce tour, dans l'ordre chronologique réel. */
+/**
+ * Extrait, dans l'ordre chronologique, les actions clés d'un tour (moves
+ * joués, switches, K.O., météo, statuts, boosts) directement depuis les
+ * lignes brutes du replay — c'est la trace RÉELLE de ce qui s'est passé,
+ * pas une simulation.
+ */
+/** Icône par type d'action, pour un survol rapide du déroulé du tour. */
+type ObservedActionKind = 'move' | 'switch' | 'faint' | 'weather' | 'status' | 'boost';
+
 interface ObservedAction {
   side: 'p1' | 'p2';
   pokemonLabel: string;
   text: string;
+  kind: ObservedActionKind;
 }
 
-/**
- * Extrait, dans l'ordre chronologique, les actions clés d'un tour (moves
- * joués, switches, K.O.) directement depuis les lignes brutes du replay —
- * c'est la trace RÉELLE de ce qui s'est passé, pas une simulation.
- */
+const ACTION_ICONS: Record<ObservedActionKind, string> = {
+  move: '⚔️',
+  switch: '↩️',
+  faint: '💀',
+  weather: '🌦️',
+  status: '⚠️',
+  boost: '📈',
+};
+
+const RAW_WEATHER_LABELS: Record<string, string> = {
+  SunnyDay: 'Soleil',
+  RainDance: 'Pluie',
+  Sandstorm: 'Tempête de sable',
+  Snowscape: 'Neige',
+  Hail: 'Grêle',
+  DesolateLand: 'Soleil extrême',
+  PrimordialSea: 'Pluie diluvienne',
+  none: 'Météo normale',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  brn: 'brûlure',
+  par: 'paralysie',
+  psn: 'poison',
+  tox: 'poison grave',
+  slp: 'sommeil',
+  frz: 'gel',
+};
+
 function extractObservedActions(parsedReplay: ParsedReplayLog, turnNumber: number): ObservedAction[] {
   const turnLines = parsedReplay.turns[turnNumber] ?? [];
   const actions: ObservedAction[] = [];
@@ -1516,20 +1572,46 @@ function extractObservedActions(parsedReplay: ParsedReplayLog, turnNumber: numbe
       actions.push({
         side,
         pokemonLabel: ident.name,
-        text: targetIdent ? `${moveName} → ${targetIdent.name}` : moveName,
+        text: targetIdent && targetIdent.name !== ident.name ? `${moveName} → ${targetIdent.name}` : moveName,
+        kind: 'move',
       });
     } else if (line.type === 'switch' || line.type === 'drag') {
       const [identRaw] = line.args;
       const ident = parsePokemonIdent(identRaw);
       const side = ident.side as 'p1' | 'p2';
       if (side !== 'p1' && side !== 'p2') continue;
-      actions.push({ side, pokemonLabel: ident.name, text: 'entre sur le terrain' });
+      actions.push({ side, pokemonLabel: ident.name, text: 'entre sur le terrain', kind: 'switch' });
     } else if (line.type === 'faint') {
       const [identRaw] = line.args;
       const ident = parsePokemonIdent(identRaw);
       const side = ident.side as 'p1' | 'p2';
       if (side !== 'p1' && side !== 'p2') continue;
-      actions.push({ side, pokemonLabel: ident.name, text: 'K.O.' });
+      actions.push({ side, pokemonLabel: ident.name, text: 'K.O.', kind: 'faint' });
+    } else if (line.type === '-weather') {
+      // [upkeep] = la météo continue simplement, pas un vrai changement à signaler.
+      if (line.tags?.upkeep) continue;
+      const [weatherRaw] = line.args;
+      const label = RAW_WEATHER_LABELS[weatherRaw] ?? weatherRaw;
+      actions.push({ side: 'p1', pokemonLabel: '', text: label, kind: 'weather' });
+    } else if (line.type === '-status') {
+      const [identRaw, statusRaw] = line.args;
+      const ident = parsePokemonIdent(identRaw);
+      const side = ident.side as 'p1' | 'p2';
+      if (side !== 'p1' && side !== 'p2') continue;
+      const label = STATUS_LABELS[statusRaw] ?? statusRaw;
+      actions.push({ side, pokemonLabel: ident.name, text: `${label}`, kind: 'status' });
+    } else if (line.type === '-boost' || line.type === '-unboost') {
+      const [identRaw, statRaw, amountRaw] = line.args;
+      const ident = parsePokemonIdent(identRaw);
+      const side = ident.side as 'p1' | 'p2';
+      if (side !== 'p1' && side !== 'p2') continue;
+      const sign = line.type === '-unboost' ? '-' : '+';
+      actions.push({
+        side,
+        pokemonLabel: ident.name,
+        text: `${statRaw.toUpperCase()} ${sign}${amountRaw}`,
+        kind: 'boost',
+      });
     }
   }
 
@@ -1559,9 +1641,12 @@ function TurnActionsLog({
       <h3>Déroulé du tour (ordre réel)</h3>
       <ol className="turn-actions-list">
         {actions.map((a, i) => (
-          <li key={i} className={`turn-action-item turn-action-${a.side}`}>
-            <span className="turn-action-side-tag">{a.side === 'p1' ? 'P1' : 'P2'}</span>
-            <span className="turn-action-pokemon">{a.pokemonLabel}</span>
+          <li key={i} className={`turn-action-item turn-action-${a.side} turn-action-kind-${a.kind}`}>
+            <span className="turn-action-icon">{ACTION_ICONS[a.kind]}</span>
+            {a.kind !== 'weather' && (
+              <span className="turn-action-side-tag">{a.side === 'p1' ? 'P1' : 'P2'}</span>
+            )}
+            {a.pokemonLabel && <span className="turn-action-pokemon">{a.pokemonLabel}</span>}
             <span className="turn-action-text">{a.text}</span>
           </li>
         ))}
