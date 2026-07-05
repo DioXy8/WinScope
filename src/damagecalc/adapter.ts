@@ -51,8 +51,10 @@ export class DexLookupError extends Error {
  *  - Tyranitar et Aerodactyl : parfois joués sans Mega-évoluer malgré la
  *    pierre (tech spécifique, garder la stat brute en Mega Stone sans
  *    l'activer).
- *  - Banette : la forme Mega est jugée trop faible, quasiment jamais jouée
- *    même quand la Banettite est révélée.
+ *  - Sableye : la forme Mega est jugée trop faible, quasiment jamais jouée
+ *    même quand la Sablenite est révélée. (Correction : "Ténéfix" est le
+ *    nom français de Sableye, pas de Banette — confusion corrigée après
+ *    intégration de la table de traduction FR→EN, cf. sets/pokepasteParser.ts.)
  * Pour ces trois-là, on ne présume PAS la Mega Evolution avant qu'elle soit
  * confirmée par le replay (`isMegaEvolved === true`) — contrairement à
  * toutes les autres espèces, où la tenue d'une Mega Stone révélée suffit à
@@ -60,7 +62,7 @@ export class DexLookupError extends Error {
  * la première action, donc autant l'anticiper plutôt que de sous-estimer
  * les stats pendant un tour ou deux).
  */
-const UNRELIABLE_MEGA_SPECIES = new Set(['Tyranitar', 'Aerodactyl', 'Banette']);
+const UNRELIABLE_MEGA_SPECIES = new Set(['Tyranitar', 'Aerodactyl', 'Sableye']);
 
 /**
  * Détermine quelle forme utiliser pour les calculs de stats/type : la forme
