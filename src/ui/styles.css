@@ -463,6 +463,24 @@ body {
   z-index: 2;
 }
 
+.battle-stage-side-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.75);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.battle-stage-side-label-top {
+  text-align: left;
+  margin-bottom: -16px;
+}
+
+.battle-stage-side-label-bottom {
+  text-align: right;
+  margin-top: -16px;
+}
+
 .battle-stage-weather-rain {
   background: linear-gradient(180deg, #1c3d5e 0%, #14283d 45%, #223a24 45%, #1c2e1e 100%);
 }
@@ -1169,13 +1187,53 @@ body {
   gap: 8px;
   font-size: 0.8rem;
   counter-increment: turn-action-counter;
+  padding: 4px 8px 4px 6px;
+  border-left: 3px solid transparent;
+  border-radius: 4px;
 }
 
 .turn-action-item::before {
   content: counter(turn-action-counter) '.';
   color: #555;
-  width: 18px;
+  width: 16px;
   flex-shrink: 0;
+  font-size: 0.7rem;
+}
+
+.turn-action-icon {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.turn-action-p1 {
+  border-left-color: #6ec6ff;
+  background: rgba(110, 198, 255, 0.05);
+}
+
+.turn-action-p2 {
+  border-left-color: #ff9b6b;
+  background: rgba(255, 155, 107, 0.05);
+}
+
+.turn-action-kind-faint {
+  background: rgba(255, 107, 107, 0.1);
+}
+
+.turn-action-kind-faint .turn-action-text {
+  color: #ff6b6b;
+  font-weight: 700;
+}
+
+.turn-action-kind-weather {
+  border-left-color: #ffd93d;
+  background: rgba(255, 217, 61, 0.06);
+  justify-content: center;
+  font-style: italic;
+}
+
+.turn-action-kind-weather .turn-action-text {
+  color: #ffd93d;
 }
 
 .turn-action-side-tag {
