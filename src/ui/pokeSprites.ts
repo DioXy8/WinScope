@@ -17,7 +17,13 @@
 
 const SPRITE_CACHE_STORAGE_KEY = 'winscope_sprite_cache_v1';
 
-function loadPersistedCache(): Record<string, string | null> {
+interface SpriteSet {
+  officialArtwork: string | null;
+  front: string | null;
+  back: string | null;
+}
+
+function loadPersistedCache(): Record<string, SpriteSet> {
   try {
     const raw = localStorage.getItem(SPRITE_CACHE_STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
@@ -26,10 +32,10 @@ function loadPersistedCache(): Record<string, string | null> {
   }
 }
 
-function persistCacheEntry(slug: string, url: string | null): void {
+function persistCacheEntry(slug: string, spriteSet: SpriteSet): void {
   try {
     const cache = loadPersistedCache();
-    cache[slug] = url;
+    cache[slug] = spriteSet;
     localStorage.setItem(SPRITE_CACHE_STORAGE_KEY, JSON.stringify(cache));
   } catch {
     // localStorage indisponible (navigation privée, quota...) : on continue
@@ -37,8 +43,8 @@ function persistCacheEntry(slug: string, url: string | null): void {
   }
 }
 
-const memoryCache = new Map<string, string | null>();
-const inFlightRequests = new Map<string, Promise<string | null>>();
+const memoryCache = new Map<string, SpriteSet>();
+const inFlightRequests = new Map<string, Promise<SpriteSet>>();
 
 /**
  * Table d'exceptions pour les espèces dont le nom Showdown/notre dex ne
@@ -107,8 +113,10 @@ export function getSpriteCandidateSlugs(
   return candidates;
 }
 
-async function fetchSpriteForSlug(slug: string): Promise<string | null> {
-  if (memoryCache.has(slug)) return memoryCache.get(slug) ?? null;
+const EMPTY_SPRITE_SET: SpriteSet = { officialArtwork: null, front: null, back: null };
+
+async function fetchSpriteSetForSlug(slug: string): Promise<SpriteSet> {
+  if (memoryCache.has(slug)) return memoryCache.get(slug) ?? EMPTY_SPRITE_SET;
 
   const persisted = loadPersistedCache();
   if (slug in persisted) {
@@ -119,20 +127,23 @@ async function fetchSpriteForSlug(slug: string): Promise<string | null> {
   const existing = inFlightRequests.get(slug);
   if (existing) return existing;
 
-  const request = (async (): Promise<string | null> => {
+  const request = (async (): Promise<SpriteSet> => {
     try {
       const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${slug}`);
       if (!res.ok) throw new Error(`PokeAPI ${res.status} pour "${slug}"`);
       const data = await res.json();
-      const url: string | null =
-        data?.sprites?.other?.['official-artwork']?.front_default ?? data?.sprites?.front_default ?? null;
-      memoryCache.set(slug, url);
-      persistCacheEntry(slug, url);
-      return url;
+      const spriteSet: SpriteSet = {
+        officialArtwork: data?.sprites?.other?.['official-artwork']?.front_default ?? null,
+        front: data?.sprites?.front_default ?? null,
+        back: data?.sprites?.back_default ?? null,
+      };
+      memoryCache.set(slug, spriteSet);
+      persistCacheEntry(slug, spriteSet);
+      return spriteSet;
     } catch {
-      memoryCache.set(slug, null);
-      persistCacheEntry(slug, null);
-      return null;
+      memoryCache.set(slug, EMPTY_SPRITE_SET);
+      persistCacheEntry(slug, EMPTY_SPRITE_SET);
+      return EMPTY_SPRITE_SET;
     } finally {
       inFlightRequests.delete(slug);
     }
@@ -143,9 +154,11 @@ async function fetchSpriteForSlug(slug: string): Promise<string | null> {
 }
 
 /**
- * Résout la meilleure URL de sprite disponible pour ce Pokémon, en
- * essayant d'abord sa forme Mega si applicable, puis son espèce de base.
- * Retourne null si rien n'a été trouvé (espèce hors PokeAPI, hors-ligne...).
+ * Résout la meilleure URL de sprite disponible pour ce Pokémon (illustration
+ * officielle en priorité, sprite in-game en repli), en essayant d'abord sa
+ * forme Mega si applicable, puis son espèce de base. Retourne null si rien
+ * n'a été trouvé (espèce hors PokeAPI, hors-ligne...). Utilisé pour les
+ * icônes/cartes (PokemonCard, TeamCard).
  */
 export async function resolveSpriteUrl(
   species: string,
@@ -153,8 +166,31 @@ export async function resolveSpriteUrl(
   megaForme: string | null,
 ): Promise<string | null> {
   for (const slug of getSpriteCandidateSlugs(species, isMegaEvolved, megaForme)) {
-    const url = await fetchSpriteForSlug(slug);
+    const spriteSet = await fetchSpriteSetForSlug(slug);
+    const url = spriteSet.officialArtwork ?? spriteSet.front;
     if (url) return url;
   }
   return null;
+}
+
+/**
+ * Résout la paire de sprites in-game (face/dos) pour la scène de combat
+ * (ui/App.tsx::BattleStage) : le camp de l'utilisateur est vu de dos, le
+ * camp adverse de face, comme dans le jeu réel. On utilise volontairement
+ * les petits sprites in-game (pas l'illustration officielle, qui n'a pas de
+ * version "dos") pour que face et dos restent visuellement cohérents entre
+ * eux. Retourne { front: null, back: null } si rien n'a été trouvé.
+ */
+export async function resolveBattleSprites(
+  species: string,
+  isMegaEvolved: boolean,
+  megaForme: string | null,
+): Promise<{ front: string | null; back: string | null }> {
+  for (const slug of getSpriteCandidateSlugs(species, isMegaEvolved, megaForme)) {
+    const spriteSet = await fetchSpriteSetForSlug(slug);
+    if (spriteSet.front || spriteSet.back) {
+      return { front: spriteSet.front, back: spriteSet.back };
+    }
+  }
+  return { front: null, back: null };
 }
