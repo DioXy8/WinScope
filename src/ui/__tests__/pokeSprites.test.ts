@@ -96,3 +96,59 @@ describe('resolveSpriteUrl', () => {
     expect(url).toBeNull();
   });
 });
+
+describe('resolveBattleSprites', () => {
+  beforeEach(() => {
+    installLocalStorageMock();
+    vi.resetModules();
+    vi.unstubAllGlobals();
+    installLocalStorageMock();
+  });
+
+  it('retourne les sprites in-game face ET dos (pas l’illustration officielle, qui n’a pas de dos)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          sprites: {
+            front_default: 'https://example.com/incineroar-front.png',
+            back_default: 'https://example.com/incineroar-back.png',
+            other: { 'official-artwork': { front_default: 'https://example.com/incineroar-art.png' } },
+          },
+        }),
+      }),
+    );
+    const { resolveBattleSprites } = await import('../pokeSprites');
+    const sprites = await resolveBattleSprites('Incineroar', false, null);
+    expect(sprites).toEqual({
+      front: 'https://example.com/incineroar-front.png',
+      back: 'https://example.com/incineroar-back.png',
+    });
+  });
+
+  it('retombe sur l’espèce de base si la forme Mega n’a pas de sprites (Mega fictive de Champions)', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('floette-mega') || url.includes('floette-eternal-mega')) {
+        return Promise.resolve({ ok: false, status: 404 });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          sprites: { front_default: 'https://example.com/floette-front.png', back_default: 'https://example.com/floette-back.png' },
+        }),
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { resolveBattleSprites } = await import('../pokeSprites');
+    const sprites = await resolveBattleSprites('Floette-Eternal', true, 'Mega Floette');
+    expect(sprites.front).toBe('https://example.com/floette-front.png');
+  });
+
+  it('retourne { front: null, back: null } si rien n’est trouvé', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }));
+    const { resolveBattleSprites } = await import('../pokeSprites');
+    const sprites = await resolveBattleSprites('Definitely Not A Pokemon', false, null);
+    expect(sprites).toEqual({ front: null, back: null });
+  });
+});
