@@ -20,18 +20,29 @@
 
 import type { BattleState, PokemonState } from '../engine/state';
 
-/** Score brut d'un seul Pokémon VIVANT : HP% pondéré par boosts/statut. Toujours 0 si KO. */
+/** Score brut d'un seul Pokémon VIVANT : HP% (ajusté par statut) + bonus de boost. Toujours 0 si KO. */
 function pokemonHealthScore(p: PokemonState): number {
   if (p.fainted) return 0;
   const maxHp = p.maxHp ?? 100;
   const hpFraction = Math.max(0, Math.min(1, p.currentHp / maxHp));
-
-  const boostSum = p.boosts.atk + p.boosts.spa + p.boosts.def + p.boosts.spd + p.boosts.spe;
-  const boostFactor = 1 + Math.max(-0.5, Math.min(0.5, boostSum * 0.04));
-
   const statusFactor = p.status === 'slp' || p.status === 'frz' ? 0.85 : p.status === 'par' ? 0.92 : 1;
 
-  return hpFraction * boostFactor * statusFactor;
+  // Bonus de boost ADDITIF plutôt que multiplicatif sur le %HP : avec un
+  // multiplicateur borné à [0.25, 1.75] appliqué à un hpFraction max de 1.0,
+  // même un boost énorme (Shell Smash : +2/+2/+2, -1/-1, somme nette +4) ne
+  // pouvait jamais déplacer le score de plus de quelques points une fois
+  // noyé dans ALIVE_COUNT_WEIGHT=4 par Pokémon vivant — largement
+  // insuffisant pour refléter qu'un tel boost change concrètement la donne
+  // (dégâts ~doublés, joue quasi toujours en premier). Le bonus additif
+  // reste une approximation grossière (aucune pondération par stat — un
+  // boost de vitesse ou d'attaque compte pareil qu'un boost défensif, et il
+  // ignore si l'adversaire peut ou non exploiter la faiblesse en Def/SpD
+  // laissée par Shell Smash), mais pèse enfin un poids comparable à une
+  // vraie différence de Pokémon en vie.
+  const boostSum = p.boosts.atk + p.boosts.spa + p.boosts.def + p.boosts.spd + p.boosts.spe;
+  const boostBonus = Math.max(-1.5, Math.min(1.5, boostSum * 0.25));
+
+  return hpFraction * statusFactor + boostBonus;
 }
 
 interface SideSummary {
