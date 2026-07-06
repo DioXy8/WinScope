@@ -637,8 +637,6 @@ function BattleExplorer({
         </p>
       )}
 
-      <WinHistory probabilities={winProbabilities} currentIndex={turnIndex} onSelect={onTurnChange} />
-
       <FieldSummary battle={current} />
 
       <MatchupsPanel battle={current} p1Name={p1Name} p2Name={p2Name} />
@@ -711,46 +709,6 @@ function VerticalWinBar({
         <span className="vertical-winbar-name">{p2Name}</span>
         <span className="vertical-winbar-percent vertical-winbar-percent-p2">{p2Percent}%</span>
       </div>
-    </div>
-  );
-}
-
-function WinHistory({
-  probabilities,
-  currentIndex,
-  onSelect,
-}: {
-  probabilities: number[];
-  currentIndex: number;
-  onSelect: (index: number) => void;
-}) {
-  const width = 600;
-  const height = 80;
-  const padding = 8;
-  const stepX = probabilities.length > 1 ? (width - padding * 2) / (probabilities.length - 1) : 0;
-
-  const points = probabilities
-    .map((p, i) => {
-      const x = padding + i * stepX;
-      const y = padding + (height - padding * 2) * (1 - p / 100);
-      return `${x},${y}`;
-    })
-    .join(' ');
-
-  return (
-    <div className="win-history">
-      <svg viewBox={`0 0 ${width} ${height}`} className="win-history-svg">
-        <line x1={padding} y1={height / 2} x2={width - padding} y2={height / 2} className="win-history-midline" />
-        <polyline points={points} className="win-history-line" fill="none" />
-      </svg>
-      <input
-        type="range"
-        min={0}
-        max={probabilities.length - 1}
-        value={currentIndex}
-        onChange={(e) => onSelect(Number(e.target.value))}
-        className="win-history-range"
-      />
     </div>
   );
 }
@@ -1240,7 +1198,7 @@ function AttackerMoveCard({
       )}
 
       <button className="boost-override-toggle" onClick={() => setShowAttackerBoosts((v) => !v)}>
-        {showAttackerBoosts ? '▾' : '▸'} Stats hypothétiques ({attackerLabel})
+        {showAttackerBoosts ? '▾' : '▸'} Boosts ({attackerLabel})
         {isAttackerBoostOverridden && (
           <span className="boost-override-active-dot" title="Stats modifiées par rapport au vrai combat" />
         )}
@@ -1262,7 +1220,7 @@ function AttackerMoveCard({
       {selectedTarget && (
         <>
           <button className="boost-override-toggle" onClick={() => setShowDefenderBoosts((v) => !v)}>
-            {showDefenderBoosts ? '▾' : '▸'} Stats hypothétiques (cible)
+            {showDefenderBoosts ? '▾' : '▸'} Boosts (cible)
             {isDefenderBoostOverridden && (
               <span className="boost-override-active-dot" title="Stats modifiées par rapport au vrai combat" />
             )}
@@ -1520,7 +1478,7 @@ function PositionAnalysisCard({
  * pas une simulation.
  */
 /** Icône par type d'action, pour un survol rapide du déroulé du tour. */
-type ObservedActionKind = 'move' | 'switch' | 'faint' | 'weather' | 'status' | 'boost';
+type ObservedActionKind = 'move' | 'switch' | 'faint' | 'weather' | 'status';
 
 interface ObservedAction {
   side: 'p1' | 'p2';
@@ -1535,7 +1493,6 @@ const ACTION_ICONS: Record<ObservedActionKind, string> = {
   faint: '💀',
   weather: '🌦️',
   status: '⚠️',
-  boost: '📈',
 };
 
 const RAW_WEATHER_LABELS: Record<string, string> = {
@@ -1600,18 +1557,6 @@ function extractObservedActions(parsedReplay: ParsedReplayLog, turnNumber: numbe
       if (side !== 'p1' && side !== 'p2') continue;
       const label = STATUS_LABELS[statusRaw] ?? statusRaw;
       actions.push({ side, pokemonLabel: ident.name, text: `${label}`, kind: 'status' });
-    } else if (line.type === '-boost' || line.type === '-unboost') {
-      const [identRaw, statRaw, amountRaw] = line.args;
-      const ident = parsePokemonIdent(identRaw);
-      const side = ident.side as 'p1' | 'p2';
-      if (side !== 'p1' && side !== 'p2') continue;
-      const sign = line.type === '-unboost' ? '-' : '+';
-      actions.push({
-        side,
-        pokemonLabel: ident.name,
-        text: `${statRaw.toUpperCase()} ${sign}${amountRaw}`,
-        kind: 'boost',
-      });
     }
   }
 
