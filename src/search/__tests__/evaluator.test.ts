@@ -104,4 +104,42 @@ describe('estimateWinProbability', () => {
     };
     expect(estimateWinProbability(battle)).toBe(50);
   });
+
+  it('valorise significativement un gros boost type Shell Smash (+2/+2/+2, -1/-1) par rapport à un Pokémon neutre de même %HP', () => {
+    // Régression : avant le correctif, le facteur de boost était plafonné à
+    // ±50% avec un poids de 0.04/palier — un Shell Smash (somme nette +4)
+    // n'apportait que +16%, largement sous-évalué face à l'impact réel
+    // d'un tel boost (dégâts ~doublés, joue quasi toujours en premier).
+    let battle = createInitialBattleState();
+    const boosted = {
+      ...createInitialPokemonState({ species: 'Blastoise', side: 'p1', level: 50 }),
+      maxHp: 100,
+      currentHp: 100,
+      boosts: { atk: 2, def: -1, spa: 2, spd: -1, spe: 2 },
+    };
+    const neutral = {
+      ...createInitialPokemonState({ species: 'Blastoise', side: 'p1', level: 50 }),
+      maxHp: 100,
+      currentHp: 100,
+    };
+    const opponent = {
+      ...createInitialPokemonState({ species: 'Incineroar', side: 'p2', level: 50 }),
+      maxHp: 100,
+      currentHp: 100,
+    };
+
+    const withBoost = estimateWinProbability({
+      ...battle,
+      pokemonByKey: { 'p1:Blastoise': boosted, 'p2:Incineroar': opponent },
+    });
+    const withoutBoost = estimateWinProbability({
+      ...battle,
+      pokemonByKey: { 'p1:Blastoise': neutral, 'p2:Incineroar': { ...opponent } },
+    });
+
+    expect(withBoost).toBeGreaterThan(withoutBoost);
+    // Le boost à lui seul (sans différence d'alive count ni de %HP) doit
+    // suffire à sortir du 50/50 de façon notable, pas juste +1 ou +2 points.
+    expect(withBoost - withoutBoost).toBeGreaterThanOrEqual(5);
+  });
 });
