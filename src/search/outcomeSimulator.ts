@@ -28,7 +28,7 @@
 import { markFainted, resetOnSwitchOut, setHp, setPosition } from '../engine/pokemon';
 import type { BattleState, PokemonState } from '../engine/state';
 import { calculateDamage } from '../damagecalc/damageCalc';
-import { buildVendorPokemon } from '../damagecalc/adapter';
+import { buildVendorPokemon, isOffensiveMove, isSpreadMove } from '../damagecalc/adapter';
 import { getMoveAccuracyFraction, getMoveTargetInfo } from './actionGenerator';
 import { actsBefore, buildSpeedContext } from './speedOrder';
 import type { SpeedContext } from './speedOrder';
@@ -105,6 +105,15 @@ function applyMoveHitOnTarget(
   if (target.volatiles.has('Protect')) {
     return { battle, note: `${moveName}: bloqué par Protect` };
   }
+  if (target.volatiles.has('QuickGuard') && (getMoveTargetInfo(moveName)?.priority ?? 0) > 0) {
+    return { battle, note: `${moveName}: bloqué par Quick Guard` };
+  }
+  if (target.volatiles.has('WideGuard') && isSpreadMove(moveName)) {
+    return { battle, note: `${moveName}: bloqué par Wide Guard` };
+  }
+  if (target.volatiles.has('CraftyShield') && !isOffensiveMove(moveName)) {
+    return { battle, note: `${moveName}: bloqué par Crafty Shield` };
+  }
 
   let result;
   try {
@@ -178,11 +187,29 @@ const SELF_BOOST_MOVES: Record<string, Partial<Record<StatId, number>>> = {
 };
 
 /**
+ * Protections de ZONE (protègent tout le côté du lanceur, pas seulement
+ * lui-même, contrairement à Protect) — chacune avec une portée précise :
+ *  - Quick Guard : bloque les moves prioritaires (priorité > 0).
+ *  - Wide Guard : bloque les moves de zone (Earthquake, Dazzling Gleam...).
+ *  - Crafty Shield : bloque les moves de catégorie Statut ciblés (Thunder
+ *    Wave, Taunt...) mais PAS les dégâts directs.
+ */
+const QUICK_GUARD_MOVES = new Set(['Quick Guard']);
+const WIDE_GUARD_MOVES = new Set(['Wide Guard']);
+const CRAFTY_SHIELD_MOVES = new Set(['Crafty Shield']);
+
+/** Nom du volatile posé sur CHAQUE Pokémon actif du côté du lanceur, pour ces 3 moves de zone. */
+function sideGuardVolatileName(moveName: string): 'QuickGuard' | 'WideGuard' | 'CraftyShield' | null {
+  if (QUICK_GUARD_MOVES.has(moveName)) return 'QuickGuard';
+  if (WIDE_GUARD_MOVES.has(moveName)) return 'WideGuard';
+  if (CRAFTY_SHIELD_MOVES.has(moveName)) return 'CraftyShield';
+  return null;
+}
+
+/**
  * Famille "Protect" classique (protection totale contre un move ciblé,
- * priorité +4) — PAS Quick Guard/Wide Guard/Crafty Shield, dont la portée
- * est différente (moves prioritaires seulement / spread seulement / statut
- * seulement) et qui restent donc "non simulés en détail" pour l'instant,
- * plutôt que de risquer une règle de blocage trop large ou trop étroite.
+ * priorité +4) — la portée est différente des protections de zone
+ * ci-dessus (Quick Guard/Wide Guard/Crafty Shield), gérées séparément.
  */
 const PROTECT_MOVES = new Set([
   'Protect',
@@ -216,6 +243,28 @@ function applySingleAction(
   }
 
   if (action.targetPositions.length === 0) {
+    const guardName = sideGuardVolatileName(action.moveName);
+    if (guardName) {
+      const userPokemon = battle.pokemonByKey[action.userKey];
+      if (!userPokemon || userPokemon.fainted) {
+        return { battle, notes: [`${action.moveName} (utilisateur indisponible)`] };
+      }
+      // Protège TOUT le côté (les 2 emplacements actifs en double), pas
+      // seulement le lanceur — contrairement à Protect classique.
+      let nextBattle = battle;
+      for (const [pos, key] of Object.entries(battle.activeByPosition)) {
+        if (!pos.startsWith(userPokemon.side)) continue;
+        nextBattle = updatePokemonInBattle(nextBattle, key, (p) => ({
+          ...p,
+          volatiles: new Set(p.volatiles).add(guardName),
+        }));
+      }
+      return {
+        battle: nextBattle,
+        notes: [`${action.moveName} (${userPokemon.species}): protège le côté ${userPokemon.side} ce tour`],
+      };
+    }
+
     if (PROTECT_MOVES.has(action.moveName)) {
       const userPokemon = battle.pokemonByKey[action.userKey];
       if (!userPokemon || userPokemon.fainted) {
