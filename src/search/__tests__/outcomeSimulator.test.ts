@@ -306,4 +306,175 @@ describe('simulateTurn', () => {
       expect(garchomp.currentHp).toBe(garchomp.maxHp);
     }
   });
+
+  it('Quick Guard bloque un move prioritaire mais pas un move de priorité normale', () => {
+    const battle = setupSimpleBattle();
+    const quickGuard: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Incineroar',
+      userPosition: 'p1a',
+      moveName: 'Quick Guard',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+    // Quick Attack a la priorité +1 (move prioritaire, mais moins que Quick
+    // Guard +3) : bloqué quelle que soit la vitesse relative des deux côtés.
+    const quickAttackFromP2: MoveAction = {
+      kind: 'move',
+      userKey: 'p2:Garchomp',
+      userPosition: 'p2a',
+      moveName: 'Quick Attack',
+      targetPositions: ['p1a'],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+
+    const branches = simulateTurn(battle, [quickGuard], [quickAttackFromP2]);
+    for (const branch of branches) {
+      const incineroar = branch.battle.pokemonByKey['p1:Incineroar'];
+      expect(incineroar.currentHp).toBe(incineroar.maxHp);
+    }
+  });
+
+  it('Quick Guard NE bloque PAS un move de priorité normale (Earthquake)', () => {
+    const battle = setupSimpleBattle();
+    const quickGuard: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Incineroar',
+      userPosition: 'p1a',
+      moveName: 'Quick Guard',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+    const earthquake: MoveAction = {
+      kind: 'move',
+      userKey: 'p2:Garchomp',
+      userPosition: 'p2a',
+      moveName: 'Earthquake',
+      targetPositions: ['p1a'],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+
+    const branches = simulateTurn(battle, [quickGuard], [earthquake]);
+    for (const branch of branches) {
+      const incineroar = branch.battle.pokemonByKey['p1:Incineroar'];
+      expect(incineroar.currentHp).toBeLessThan(incineroar.maxHp ?? 190);
+    }
+  });
+
+  it('Wide Guard bloque un move de zone (Earthquake) mais pas un move single-target', () => {
+    const battle = setupSimpleBattle();
+    const wideGuard: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Incineroar',
+      userPosition: 'p1a',
+      moveName: 'Wide Guard',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+    const earthquake: MoveAction = {
+      kind: 'move',
+      userKey: 'p2:Garchomp',
+      userPosition: 'p2a',
+      moveName: 'Earthquake',
+      targetPositions: ['p1a'],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+
+    const branches = simulateTurn(battle, [wideGuard], [earthquake]);
+    for (const branch of branches) {
+      const incineroar = branch.battle.pokemonByKey['p1:Incineroar'];
+      expect(incineroar.currentHp).toBe(incineroar.maxHp);
+    }
+  });
+
+  it('Wide Guard protège TOUT le côté (l’allié aussi), pas seulement le lanceur', () => {
+    let battle = createInitialBattleState();
+    const incineroarA = {
+      ...createInitialPokemonState({ species: 'Incineroar', side: 'p1', level: 50 }),
+      position: 'p1a' as const,
+      maxHp: 190,
+      currentHp: 190,
+      hpIsPercentage: false,
+    };
+    const klefki = {
+      ...createInitialPokemonState({ species: 'Klefki', side: 'p1', level: 50 }),
+      position: 'p1b' as const,
+      maxHp: 150,
+      currentHp: 150,
+      hpIsPercentage: false,
+    };
+    const garchomp = {
+      ...createInitialPokemonState({ species: 'Garchomp', side: 'p2', level: 50 }),
+      position: 'p2a' as const,
+      maxHp: 190,
+      currentHp: 190,
+      hpIsPercentage: false,
+    };
+    battle = {
+      ...battle,
+      pokemonByKey: { 'p1:Incineroar': incineroarA, 'p1:Klefki': klefki, 'p2:Garchomp': garchomp },
+      activeByPosition: { p1a: 'p1:Incineroar', p1b: 'p1:Klefki', p2a: 'p2:Garchomp' },
+    };
+
+    const wideGuard: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Incineroar',
+      userPosition: 'p1a',
+      moveName: 'Wide Guard',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+    const earthquake: MoveAction = {
+      kind: 'move',
+      userKey: 'p2:Garchomp',
+      userPosition: 'p2a',
+      moveName: 'Earthquake',
+      targetPositions: ['p1a', 'p1b'],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+
+    const branches = simulateTurn(battle, [wideGuard], [earthquake]);
+    for (const branch of branches) {
+      expect(branch.battle.pokemonByKey['p1:Incineroar'].currentHp).toBe(190);
+      // Klefki (l'allié, qui n'a pas lancé Wide Guard) doit AUSSI être protégé.
+      expect(branch.battle.pokemonByKey['p1:Klefki'].currentHp).toBe(150);
+    }
+  });
+
+  it('Crafty Shield bloque un move de statut ciblé mais pas un move offensif', () => {
+    const battle = setupSimpleBattle();
+    const craftyShield: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Incineroar',
+      userPosition: 'p1a',
+      moveName: 'Crafty Shield',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+    const earthquake: MoveAction = {
+      kind: 'move',
+      userKey: 'p2:Garchomp',
+      userPosition: 'p2a',
+      moveName: 'Earthquake',
+      targetPositions: ['p1a'],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+
+    // Crafty Shield ne bloque QUE le statut : Earthquake (dégâts directs) doit passer.
+    const branches = simulateTurn(battle, [craftyShield], [earthquake]);
+    for (const branch of branches) {
+      const incineroar = branch.battle.pokemonByKey['p1:Incineroar'];
+      expect(incineroar.currentHp).toBeLessThan(incineroar.maxHp ?? 190);
+    }
+  });
 });
