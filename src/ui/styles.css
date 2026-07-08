@@ -438,17 +438,32 @@ body {
 }
 
 .battle-stage {
-  background: linear-gradient(180deg, #2a4d6e 0%, #1a3348 50%, #2d4a2f 50%, #253d27 100%);
   border: 1px solid #2a2e3a;
   border-radius: 12px;
-  padding: 16px;
   position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 8px;
   min-height: 320px;
   overflow: hidden;
+}
+
+.battle-stage-half {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px 16px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.battle-stage-half-top {
+  background: linear-gradient(180deg, #2a4d6e 0%, #1a3348 100%);
+}
+
+.battle-stage-half-bottom {
+  background: linear-gradient(180deg, #2d4a2f 0%, #253d27 100%);
+  justify-content: flex-end;
 }
 
 .battle-stage-weather-banner {
@@ -472,31 +487,42 @@ body {
   letter-spacing: 0.03em;
 }
 
-.battle-stage-side-label-top {
+.battle-stage-half-top .battle-stage-side-label {
   text-align: left;
-  margin-bottom: -16px;
 }
 
-.battle-stage-side-label-bottom {
+.battle-stage-half-bottom .battle-stage-side-label {
   text-align: right;
-  margin-top: -16px;
 }
 
-.battle-stage-weather-rain {
-  background: linear-gradient(180deg, #1c3d5e 0%, #14283d 45%, #223a24 45%, #1c2e1e 100%);
+.battle-stage-weather-rain .battle-stage-half-top {
+  background: linear-gradient(180deg, #1c3d5e 0%, #14283d 100%);
+}
+.battle-stage-weather-rain .battle-stage-half-bottom {
+  background: linear-gradient(180deg, #223a24 0%, #1c2e1e 100%);
 }
 
-.battle-stage-weather-sun,
-.battle-stage-weather-harshsun {
-  background: linear-gradient(180deg, #6e5a2a 0%, #4d3f1a 45%, #3d4a1f 45%, #2e3a17 100%);
+.battle-stage-weather-sun .battle-stage-half-top,
+.battle-stage-weather-harshsun .battle-stage-half-top {
+  background: linear-gradient(180deg, #6e5a2a 0%, #4d3f1a 100%);
+}
+.battle-stage-weather-sun .battle-stage-half-bottom,
+.battle-stage-weather-harshsun .battle-stage-half-bottom {
+  background: linear-gradient(180deg, #3d4a1f 0%, #2e3a17 100%);
 }
 
-.battle-stage-weather-sand {
-  background: linear-gradient(180deg, #6e5a3d 0%, #4d3f2a 45%, #4a3d24 45%, #3a2e1c 100%);
+.battle-stage-weather-sand .battle-stage-half-top {
+  background: linear-gradient(180deg, #6e5a3d 0%, #4d3f2a 100%);
+}
+.battle-stage-weather-sand .battle-stage-half-bottom {
+  background: linear-gradient(180deg, #4a3d24 0%, #3a2e1c 100%);
 }
 
-.battle-stage-weather-snow {
-  background: linear-gradient(180deg, #4a5d6e 0%, #33414d 45%, #3d4a3f 45%, #2e3a30 100%);
+.battle-stage-weather-snow .battle-stage-half-top {
+  background: linear-gradient(180deg, #4a5d6e 0%, #33414d 100%);
+}
+.battle-stage-weather-snow .battle-stage-half-bottom {
+  background: linear-gradient(180deg, #3d4a3f 0%, #2e3a30 100%);
 }
 
 .battle-stage-row {
@@ -505,10 +531,7 @@ body {
   align-items: center;
   gap: 24px;
   height: 140px;
-}
-
-.battle-stage-row-top {
-  align-items: center;
+  flex-shrink: 0;
 }
 
 .battle-stage-slot {
@@ -520,10 +543,6 @@ body {
   width: 110px;
   height: 140px;
   flex-shrink: 0;
-}
-
-.battle-stage-row-top .battle-stage-slot {
-  flex-direction: column;
 }
 
 .battle-stage-slot-fainted {
@@ -596,9 +615,8 @@ body {
 }
 
 @media (max-width: 700px) {
-  .battle-stage {
-    padding: 12px 8px;
-    gap: 4px;
+  .battle-stage-half {
+    padding: 6px 8px;
   }
 
   .battle-stage-row {
