@@ -50,7 +50,7 @@ describe('getSpriteCandidateSlugs', () => {
   });
 });
 
-describe('resolveSpriteUrl', () => {
+describe('chemin rapide statique (espèces de base connues, sans appel réseau)', () => {
   beforeEach(() => {
     installLocalStorageMock();
     vi.resetModules();
@@ -58,19 +58,68 @@ describe('resolveSpriteUrl', () => {
     installLocalStorageMock();
   });
 
-  it('retourne l’URL official-artwork quand PokeAPI répond', async () => {
+  it('résout une espèce de base directement en URL statique GitHub, SANS appeler fetch', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const { resolveSpriteUrl } = await import('../pokeSprites');
+
+    const url = await resolveSpriteUrl('Incineroar', false, null);
+    expect(url).toBe(
+      'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/727.png',
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('résout aussi la paire face/dos statique pour la scène de combat, sans appel réseau', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const { resolveBattleSprites } = await import('../pokeSprites');
+
+    const sprites = await resolveBattleSprites('Incineroar', false, null);
+    expect(sprites).toEqual({
+      front: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/727.png',
+      back: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/727.png',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('n’utilise PAS le chemin statique pour une Mega (même si l’espèce de base a un ID connu) : passe par l’API REST', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        sprites: { other: { 'official-artwork': { front_default: 'https://example.com/mega-incineroar.png' } } },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { resolveSpriteUrl } = await import('../pokeSprites');
+
+    const url = await resolveSpriteUrl('Incineroar', true, 'Mega Incineroar');
+    expect(url).toBe('https://example.com/mega-incineroar.png');
+    expect(fetchMock).toHaveBeenCalled();
+  });
+});
+
+describe('resolveSpriteUrl (repli API REST — Mega ou formes absentes de la table statique)', () => {
+  beforeEach(() => {
+    installLocalStorageMock();
+    vi.resetModules();
+    vi.unstubAllGlobals();
+    installLocalStorageMock();
+  });
+
+  it('retourne l’URL official-artwork quand PokeAPI répond (cas Mega)', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
-          sprites: { other: { 'official-artwork': { front_default: 'https://example.com/incineroar.png' } } },
+          sprites: { other: { 'official-artwork': { front_default: 'https://example.com/mega-swampert.png' } } },
         }),
       }),
     );
     const { resolveSpriteUrl } = await import('../pokeSprites');
-    const url = await resolveSpriteUrl('Incineroar', false, null);
-    expect(url).toBe('https://example.com/incineroar.png');
+    const url = await resolveSpriteUrl('Swampert', true, 'Mega Swampert');
+    expect(url).toBe('https://example.com/mega-swampert.png');
   });
 
   it('retombe sur l’espèce de base quand la forme Mega renvoie 404 (Mega fictive de Champions)', async () => {
@@ -100,25 +149,27 @@ describe('resolveSpriteUrl', () => {
     let callCount = 0;
     const fetchMock = vi.fn().mockImplementation(() => {
       callCount++;
-      if (callCount === 1) {
+      // Les 2 premiers appels (slug Mega puis slug de base, dans la même
+      // résolution) échouent tous les deux façon rate-limit ; à partir du
+      // 3e appel (deuxième résolution complète), ça réussit.
+      if (callCount <= 2) {
         return Promise.resolve({ ok: false, status: 429 });
       }
       return Promise.resolve({
         ok: true,
         json: async () => ({
-          sprites: { other: { 'official-artwork': { front_default: 'https://example.com/incineroar.png' } } },
+          sprites: { other: { 'official-artwork': { front_default: 'https://example.com/mega-swampert.png' } } },
         }),
       });
     });
     vi.stubGlobal('fetch', fetchMock);
     const { resolveSpriteUrl } = await import('../pokeSprites');
 
-    const firstAttempt = await resolveSpriteUrl('Incineroar', false, null);
-    expect(firstAttempt).toBeNull(); // rate-limited la première fois
+    const firstAttempt = await resolveSpriteUrl('Swampert', true, 'Mega Swampert');
+    expect(firstAttempt).toBeNull(); // rate-limité sur les 2 slugs essayés
 
-    const secondAttempt = await resolveSpriteUrl('Incineroar', false, null);
-    expect(secondAttempt).toBe('https://example.com/incineroar.png'); // retente avec succès, pas bloqué par un faux cache
-    expect(callCount).toBe(2);
+    const secondAttempt = await resolveSpriteUrl('Swampert', true, 'Mega Swampert');
+    expect(secondAttempt).toBe('https://example.com/mega-swampert.png'); // retente avec succès, pas bloqué par un faux cache
   });
 
   it('met en cache durablement un 404 confirmé (contrairement à un échec transitoire)', async () => {
@@ -133,7 +184,7 @@ describe('resolveSpriteUrl', () => {
   });
 });
 
-describe('resolveBattleSprites', () => {
+describe('resolveBattleSprites (repli API REST — Mega ou formes absentes de la table statique)', () => {
   beforeEach(() => {
     installLocalStorageMock();
     vi.resetModules();
@@ -141,25 +192,25 @@ describe('resolveBattleSprites', () => {
     installLocalStorageMock();
   });
 
-  it('retourne les sprites in-game face ET dos (pas l’illustration officielle, qui n’a pas de dos)', async () => {
+  it('retourne les sprites in-game face ET dos (pas l’illustration officielle, qui n’a pas de dos) — cas Mega', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
           sprites: {
-            front_default: 'https://example.com/incineroar-front.png',
-            back_default: 'https://example.com/incineroar-back.png',
-            other: { 'official-artwork': { front_default: 'https://example.com/incineroar-art.png' } },
+            front_default: 'https://example.com/mega-swampert-front.png',
+            back_default: 'https://example.com/mega-swampert-back.png',
+            other: { 'official-artwork': { front_default: 'https://example.com/mega-swampert-art.png' } },
           },
         }),
       }),
     );
     const { resolveBattleSprites } = await import('../pokeSprites');
-    const sprites = await resolveBattleSprites('Incineroar', false, null);
+    const sprites = await resolveBattleSprites('Swampert', true, 'Mega Swampert');
     expect(sprites).toEqual({
-      front: 'https://example.com/incineroar-front.png',
-      back: 'https://example.com/incineroar-back.png',
+      front: 'https://example.com/mega-swampert-front.png',
+      back: 'https://example.com/mega-swampert-back.png',
     });
   });
 
