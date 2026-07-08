@@ -33,7 +33,7 @@ import { getMoveAccuracyFraction, getMoveTargetInfo } from './actionGenerator';
 import { actsBefore, buildSpeedContext } from './speedOrder';
 import type { SpeedContext } from './speedOrder';
 import type { PlayerAction } from './actionTypes';
-import type { PokemonPosition } from '../replay/types';
+import type { PokemonPosition, StatId } from '../replay/types';
 
 /** Une feuille de l'arbre de simulation : un BattleState résultant + la probabilité de cette branche. */
 export interface SimulationBranch {
@@ -130,6 +130,58 @@ function applyMoveHitOnTarget(
   };
 }
 
+/**
+ * Moves de statut auto-ciblés (aucune cible offensive, `targetPositions`
+ * vide) qui modifient les propres stats de l'utilisateur. Nos données
+ * vendorisées (championsData.json) ne stockent que type/catégorie des
+ * moves, pas leurs effets de boost — table construite à la main, couvrant
+ * les moves de setup les plus courants en VGC/Champions. Un move de statut
+ * absent de cette table est encore traité comme "sans effet simulé" (le
+ * combat reste inchangé pour cette action) plutôt que de planter — dégradé
+ * mais pas cassé, à étendre au fil des besoins plutôt que de prétendre
+ * couvrir tous les moves de statut existants.
+ *
+ * RÉGRESSION IMPORTANTE CORRIGÉE ICI : avant ce correctif, TOUS les moves
+ * de statut (Shell Smash, Calm Mind, Swords Dance...) étaient traités comme
+ * "sans effet" dans la simulation — un Pokémon qui Shell Smash n'était donc
+ * jamais différent, dans l'état simulé, d'un Pokémon qui n'a rien fait ce
+ * tour. Ça faussait complètement l'espérance de victoire de toute action de
+ * boost, qui semblait alors aussi neutre qu'un pass.
+ */
+const SELF_BOOST_MOVES: Record<string, Partial<Record<StatId, number>>> = {
+  'Shell Smash': { atk: 2, spa: 2, spe: 2, def: -1, spd: -1 },
+  'Calm Mind': { spa: 1, spd: 1 },
+  'Swords Dance': { atk: 2 },
+  'Dragon Dance': { atk: 1, spe: 1 },
+  'Nasty Plot': { spa: 2 },
+  'Bulk Up': { atk: 1, def: 1 },
+  'Quiver Dance': { spa: 1, spd: 1, spe: 1 },
+  Agility: { spe: 2 },
+  'Rock Polish': { spe: 2 },
+  Autotomize: { spe: 2 },
+  'Iron Defense': { def: 2 },
+  'Cosmic Power': { def: 1, spd: 1 },
+  'Cotton Guard': { def: 3 },
+  Growth: { atk: 1, spa: 1 },
+  'Work Up': { atk: 1, spa: 1 },
+  'Hone Claws': { atk: 1 },
+  'Tail Glow': { spa: 3 },
+  'Belly Drum': { atk: 6 },
+  'Victory Dance': { atk: 1, def: 1, spe: 1 },
+  'No Retreat': { atk: 1, def: 1, spa: 1, spd: 1, spe: 1 },
+  'Clangorous Soul': { atk: 1, def: 1, spa: 1, spd: 1, spe: 1 },
+  Coil: { atk: 1, def: 1 },
+};
+
+/** Applique un boost, borné à [-6, 6] comme les vraies mécaniques de jeu. */
+function applyBoostDelta(pokemon: PokemonState, delta: Partial<Record<StatId, number>>): PokemonState {
+  const nextBoosts = { ...pokemon.boosts };
+  for (const [stat, amount] of Object.entries(delta) as [StatId, number][]) {
+    nextBoosts[stat] = Math.max(-6, Math.min(6, nextBoosts[stat] + amount));
+  }
+  return { ...pokemon, boosts: nextBoosts };
+}
+
 function applySingleAction(
   battle: BattleState,
   action: PlayerAction,
@@ -142,7 +194,19 @@ function applySingleAction(
   }
 
   if (action.targetPositions.length === 0) {
-    return { battle, notes: [`${action.moveName} (effet non simulé en détail)`] };
+    const boostDelta = SELF_BOOST_MOVES[action.moveName];
+    if (!boostDelta) {
+      return { battle, notes: [`${action.moveName} (effet non simulé en détail)`] };
+    }
+    const userPokemon = battle.pokemonByKey[action.userKey];
+    if (!userPokemon || userPokemon.fainted) {
+      return { battle, notes: [`${action.moveName} (utilisateur indisponible)`] };
+    }
+    const nextBattle = updatePokemonInBattle(battle, action.userKey, (p) => applyBoostDelta(p, boostDelta));
+    const boostSummary = Object.entries(boostDelta)
+      .map(([stat, amount]) => `${stat.toUpperCase()} ${amount > 0 ? `+${amount}` : amount}`)
+      .join(', ');
+    return { battle: nextBattle, notes: [`${action.moveName} (${userPokemon.species}): ${boostSummary}`] };
   }
 
   let current = battle;
