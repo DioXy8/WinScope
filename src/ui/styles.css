@@ -530,7 +530,7 @@ body {
   justify-content: center;
   align-items: center;
   gap: 24px;
-  height: 140px;
+  min-height: 140px;
   flex-shrink: 0;
 }
 
@@ -540,8 +540,8 @@ body {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  width: 110px;
-  height: 140px;
+  width: 130px;
+  min-height: 140px;
   flex-shrink: 0;
 }
 
@@ -554,8 +554,8 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   padding: 5px 8px;
-  width: 108px;
-  max-width: 108px;
+  width: 128px;
+  max-width: 128px;
   text-align: center;
   box-sizing: border-box;
 }
@@ -620,18 +620,18 @@ body {
   }
 
   .battle-stage-row {
-    height: 110px;
+    min-height: 110px;
     gap: 12px;
   }
 
   .battle-stage-slot {
-    width: 84px;
-    height: 110px;
+    width: 100px;
+    min-height: 110px;
   }
 
   .battle-stage-info-box {
-    width: 82px;
-    max-width: 82px;
+    width: 98px;
+    max-width: 98px;
   }
 
   .battle-stage-sprite {
