@@ -241,4 +241,69 @@ describe('simulateTurn', () => {
       battle.pokemonByKey['p1:Incineroar'].boosts,
     );
   });
+
+  it('Protect bloque réellement les dégâts d’un move adverse ce tour-ci — régression', () => {
+    // Avant le correctif, Protect (comme tout move de statut) laissait le
+    // combat inchangé, mais l'attaque adverse s'appliquait quand même
+    // normalement dans les branches suivantes : Protect n'avait donc aucun
+    // effet observable dans la simulation.
+    const battle = setupSimpleBattle();
+    const protect: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Incineroar',
+      userPosition: 'p1a',
+      moveName: 'Protect',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+    const earthquake: MoveAction = {
+      kind: 'move',
+      userKey: 'p2:Garchomp',
+      userPosition: 'p2a',
+      moveName: 'Earthquake',
+      targetPositions: ['p1a'],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+
+    const branches = simulateTurn(battle, [protect], [earthquake]);
+    for (const branch of branches) {
+      const incineroar = branch.battle.pokemonByKey['p1:Incineroar'];
+      // Protect a priorité +4, Earthquake priorité 0 : Protect s'active
+      // avant, et doit bloquer intégralement les dégâts d'Earthquake.
+      expect(incineroar.currentHp).toBe(incineroar.maxHp);
+      expect(incineroar.fainted).toBe(false);
+    }
+  });
+
+  it('Protect ne bloque pas un move utilisé par un AUTRE Pokémon qui ne l’a pas activé', () => {
+    const battle = setupSimpleBattle();
+    const protectOther: MoveAction = {
+      kind: 'move',
+      userKey: 'p2:Garchomp',
+      userPosition: 'p2a',
+      moveName: 'Protect',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+    const flareBlitz: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Incineroar',
+      userPosition: 'p1a',
+      moveName: 'Flare Blitz',
+      targetPositions: ['p2a'],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+
+    // Garchomp se protège, mais l'attaque vise Garchomp (bloquée) alors
+    // qu'Incineroar (qui attaque, pas protégé) doit rester intact.
+    const branches = simulateTurn(battle, [flareBlitz], [protectOther]);
+    for (const branch of branches) {
+      const garchomp = branch.battle.pokemonByKey['p2:Garchomp'];
+      expect(garchomp.currentHp).toBe(garchomp.maxHp);
+    }
+  });
 });
