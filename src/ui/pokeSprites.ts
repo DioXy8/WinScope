@@ -1,19 +1,40 @@
 /**
  * ui/pokeSprites.ts
  *
- * Résout l'URL de sprite PokeAPI pour un Pokémon, avec repli propre pour
- * les Mega Evolutions FICTIVES propres à Pokémon Champions (ex: Mega
- * Floette, Mega Garchomp, Mega Scovillain — aucune de ces formes n'existe
- * dans les jeux principaux ni donc dans PokeAPI). Dans ce cas, on retombe
+ * Résout les sprites d'un Pokémon en deux temps :
+ *  1. Chemin RAPIDE ET FIABLE : pour une espèce de base (pas de Mega), on
+ *     connaît son numéro de Pokédex national (table générée depuis le
+ *     paquet npm "pokemon") et on construit directement les URLs des
+ *     fichiers statiques du dépôt GitHub PokeAPI/sprites — aucun appel
+ *     réseau à faire nous-mêmes pour vérifier, le <img onError> du composant
+ *     gère un éventuel échec. Ça évite complètement le rate-limit de l'API
+ *     REST pour l'immense majorité des cas.
+ *  2. Repli via l'API REST `/api/v2/pokemon/{slug}` (qui accepte un nom)
+ *     UNIQUEMENT pour les Mega Evolutions et les formes spéciales absentes
+ *     de la table statique (Floette-Eternal, Urshifu-Rapid-Strike...) —
+ *     avec mise en cache agressive et gestion des échecs transitoires
+ *     (rate limit) sans les considérer comme permanents.
+ *
+ * Repli propre pour les Mega Evolutions FICTIVES propres à Pokémon
+ * Champions (ex: Mega Floette, Mega Garchomp, Mega Scovillain — aucune de
+ * ces formes n'existe dans les jeux principaux) : dans ce cas, on retombe
  * simplement sur le sprite de l'espèce de base plutôt que de ne rien
  * afficher.
- *
- * PokeAPI n'a pas besoin d'un numéro de Pokédex : `/api/v2/pokemon/{slug}`
- * accepte directement un nom (cf. docs officielles). On appelle cette API
- * plutôt que de maintenir notre propre table espèce → sprite, et on met en
- * cache agressivement (mémoire + localStorage) comme demandé par PokeAPI
- * elle-même ("cache aggressively, the data is static").
  */
+
+import speciesToDexId from './data/speciesToDexId.json';
+
+const SPECIES_TO_DEX_ID: Record<string, number> = speciesToDexId;
+
+/** Construit les URLs de sprites statiques GitHub pour une espèce de base connue — pas d'appel réseau nécessaire. */
+function getStaticSpriteSet(dexId: number): SpriteSet {
+  const base = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon';
+  return {
+    officialArtwork: `${base}/other/official-artwork/${dexId}.png`,
+    front: `${base}/${dexId}.png`,
+    back: `${base}/back/${dexId}.png`,
+  };
+}
 
 // v2 : la v1 pouvait mettre en cache pour toujours un échec transitoire
 // (rate limit PokeAPI) comme si le sprite n'existait pas — changement de
@@ -217,6 +238,10 @@ export async function resolveSpriteUrl(
   isMegaEvolved: boolean,
   megaForme: string | null,
 ): Promise<string | null> {
+  if (!isMegaEvolved) {
+    const dexId = SPECIES_TO_DEX_ID[species];
+    if (dexId) return getStaticSpriteSet(dexId).officialArtwork;
+  }
   for (const slug of getSpriteCandidateSlugs(species, isMegaEvolved, megaForme)) {
     const spriteSet = await fetchSpriteSetForSlug(slug);
     const url = spriteSet.officialArtwork ?? spriteSet.front;
@@ -238,6 +263,13 @@ export async function resolveBattleSprites(
   isMegaEvolved: boolean,
   megaForme: string | null,
 ): Promise<{ front: string | null; back: string | null }> {
+  if (!isMegaEvolved) {
+    const dexId = SPECIES_TO_DEX_ID[species];
+    if (dexId) {
+      const staticSet = getStaticSpriteSet(dexId);
+      return { front: staticSet.front, back: staticSet.back };
+    }
+  }
   for (const slug of getSpriteCandidateSlugs(species, isMegaEvolved, megaForme)) {
     const spriteSet = await fetchSpriteSetForSlug(slug);
     if (spriteSet.front || spriteSet.back) {
