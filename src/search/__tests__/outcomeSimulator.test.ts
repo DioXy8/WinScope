@@ -174,4 +174,71 @@ describe('simulateTurn', () => {
       expect(branch.battle.activeByPosition.p1a).toBeUndefined();
     }
   });
+
+  it('applique réellement les boosts d’un move de statut auto-ciblé connu (Shell Smash) — régression', () => {
+    // Avant le correctif, TOUT move sans cible offensive (targetPositions
+    // vide) laissait le combat totalement inchangé, y compris Shell Smash :
+    // le Pokémon qui l'utilisait ne recevait jamais ses +2/+2/+2/-1/-1.
+    const battle = setupSimpleBattle();
+    const shellSmash: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Incineroar',
+      userPosition: 'p1a',
+      moveName: 'Shell Smash',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+
+    const branches = simulateTurn(battle, [shellSmash], []);
+    expect(branches).toHaveLength(1); // move de statut à 100% de précision : une seule branche
+    const boosted = branches[0].battle.pokemonByKey['p1:Incineroar'];
+    expect(boosted.boosts).toEqual({ atk: 2, def: -1, spa: 2, spd: -1, spe: 2 });
+  });
+
+  it('cumule un boost auto-ciblé avec les boosts déjà existants, plafonné à +6/-6', () => {
+    const battle = setupSimpleBattle();
+    const alreadyBoosted: BattleState = {
+      ...battle,
+      pokemonByKey: {
+        ...battle.pokemonByKey,
+        'p1:Incineroar': {
+          ...battle.pokemonByKey['p1:Incineroar'],
+          boosts: { atk: 5, def: 0, spa: 5, spd: 0, spe: 5 },
+        },
+      },
+    };
+    const shellSmash: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Incineroar',
+      userPosition: 'p1a',
+      moveName: 'Shell Smash',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+
+    const branches = simulateTurn(alreadyBoosted, [shellSmash], []);
+    const boosted = branches[0].battle.pokemonByKey['p1:Incineroar'];
+    // atk/spa/spe étaient à +5, +2 les amènerait à +7 → plafonné à +6.
+    expect(boosted.boosts).toEqual({ atk: 6, def: -1, spa: 6, spd: -1, spe: 6 });
+  });
+
+  it('laisse le combat inchangé pour un move de statut auto-ciblé inconnu de la table (dégradation propre, pas de crash)', () => {
+    const battle = setupSimpleBattle();
+    const unknownStatusMove: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Incineroar',
+      userPosition: 'p1a',
+      moveName: 'Some Unknown Status Move',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+
+    const branches = simulateTurn(battle, [unknownStatusMove], []);
+    expect(branches[0].battle.pokemonByKey['p1:Incineroar'].boosts).toEqual(
+      battle.pokemonByKey['p1:Incineroar'].boosts,
+    );
+  });
 });
