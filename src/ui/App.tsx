@@ -447,18 +447,22 @@ function BattleStage({
   return (
     <div className={`battle-stage ${weatherClass}`}>
       {field.weather && <div className="battle-stage-weather-banner">{weatherLabel(field.weather)}</div>}
-      <div className="battle-stage-side-label battle-stage-side-label-top">{p1Name}</div>
-      <div className="battle-stage-row battle-stage-row-top">
-        {p1Active.map((p) => (
-          <BattleStageSlot key={p.species} pokemon={p} facing="front" />
-        ))}
+      <div className="battle-stage-half battle-stage-half-top">
+        <div className="battle-stage-side-label">{p1Name}</div>
+        <div className="battle-stage-row">
+          {p1Active.map((p) => (
+            <BattleStageSlot key={p.species} pokemon={p} facing="front" />
+          ))}
+        </div>
       </div>
-      <div className="battle-stage-row battle-stage-row-bottom">
-        {p2Active.map((p) => (
-          <BattleStageSlot key={p.species} pokemon={p} facing="back" />
-        ))}
+      <div className="battle-stage-half battle-stage-half-bottom">
+        <div className="battle-stage-row">
+          {p2Active.map((p) => (
+            <BattleStageSlot key={p.species} pokemon={p} facing="back" />
+          ))}
+        </div>
+        <div className="battle-stage-side-label">{p2Name}</div>
       </div>
-      <div className="battle-stage-side-label battle-stage-side-label-bottom">{p2Name}</div>
     </div>
   );
 }
