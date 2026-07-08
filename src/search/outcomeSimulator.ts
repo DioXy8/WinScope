@@ -102,6 +102,10 @@ function applyMoveHitOnTarget(
     return { battle, note: `${moveName}: cible déjà K.O.` };
   }
 
+  if (target.volatiles.has('Protect')) {
+    return { battle, note: `${moveName}: bloqué par Protect` };
+  }
+
   let result;
   try {
     result = calculateDamage(attacker, target, moveName, battle, attackerSide);
@@ -173,6 +177,24 @@ const SELF_BOOST_MOVES: Record<string, Partial<Record<StatId, number>>> = {
   Coil: { atk: 1, def: 1 },
 };
 
+/**
+ * Famille "Protect" classique (protection totale contre un move ciblé,
+ * priorité +4) — PAS Quick Guard/Wide Guard/Crafty Shield, dont la portée
+ * est différente (moves prioritaires seulement / spread seulement / statut
+ * seulement) et qui restent donc "non simulés en détail" pour l'instant,
+ * plutôt que de risquer une règle de blocage trop large ou trop étroite.
+ */
+const PROTECT_MOVES = new Set([
+  'Protect',
+  'Detect',
+  'Spiky Shield',
+  'Baneful Bunker',
+  "King's Shield",
+  'Obstruct',
+  'Silk Trap',
+  'Burning Bulwark',
+]);
+
 /** Applique un boost, borné à [-6, 6] comme les vraies mécaniques de jeu. */
 function applyBoostDelta(pokemon: PokemonState, delta: Partial<Record<StatId, number>>): PokemonState {
   const nextBoosts = { ...pokemon.boosts };
@@ -194,6 +216,18 @@ function applySingleAction(
   }
 
   if (action.targetPositions.length === 0) {
+    if (PROTECT_MOVES.has(action.moveName)) {
+      const userPokemon = battle.pokemonByKey[action.userKey];
+      if (!userPokemon || userPokemon.fainted) {
+        return { battle, notes: [`${action.moveName} (utilisateur indisponible)`] };
+      }
+      const nextBattle = updatePokemonInBattle(battle, action.userKey, (p) => ({
+        ...p,
+        volatiles: new Set(p.volatiles).add('Protect'),
+      }));
+      return { battle: nextBattle, notes: [`${action.moveName} (${userPokemon.species}): protégé ce tour`] };
+    }
+
     const boostDelta = SELF_BOOST_MOVES[action.moveName];
     if (!boostDelta) {
       return { battle, notes: [`${action.moveName} (effet non simulé en détail)`] };
