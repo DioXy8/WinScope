@@ -9,7 +9,7 @@ import { estimateWinProbability } from '../search/evaluator';
 import { calculateDamage, DexLookupError } from '../damagecalc/damageCalc';
 import type { DamageCalcResult } from '../damagecalc/damageCalc';
 import { isOffensiveMove, isSpreadMove, getSetConfidence, getKnownMoves, resolveDexName } from '../damagecalc/adapter';
-import { resolveSpriteUrl, resolveBattleSprites } from './pokeSprites';
+import { resolveBattleSprites, resolveSpriteCandidates } from './pokeSprites';
 import { resolveMegaForme } from '../engine/megaStones';
 import { analyzeActionsForPosition, getBestWinExpectancyForSide } from '../search/turnAnalyzer';
 import type { ActionScore } from '../search/turnAnalyzer';
@@ -472,11 +472,15 @@ function BattleStageSlot({ pokemon, facing }: { pokemon: PokemonState; facing: '
     front: null,
     back: null,
   });
+  const [preferredFailed, setPreferredFailed] = useState(false);
+  const [fallbackFailed, setFallbackFailed] = useState(false);
   const assumedDexName = resolveDexName(pokemon);
   const isMega = assumedDexName !== pokemon.species;
 
   useEffect(() => {
     let cancelled = false;
+    setPreferredFailed(false);
+    setFallbackFailed(false);
     resolveBattleSprites(pokemon.species, isMega, isMega ? assumedDexName : null).then((resolved) => {
       if (!cancelled) setSprites(resolved);
     });
@@ -485,7 +489,12 @@ function BattleStageSlot({ pokemon, facing }: { pokemon: PokemonState; facing: '
     };
   }, [pokemon.species, isMega, assumedDexName]);
 
-  const spriteUrl = facing === 'back' ? (sprites.back ?? sprites.front) : (sprites.front ?? sprites.back);
+  const preferredUrl = facing === 'back' ? sprites.back : sprites.front;
+  const fallbackUrl = facing === 'back' ? sprites.front : sprites.back;
+  // Si le sprite de la face demandée échoue au chargement (ex: manquant
+  // pour cette espèce), on retombe sur l'autre face plutôt que de laisser
+  // un cadre vide — les deux valent mieux qu'aucun sprite du tout.
+  const spriteUrl = !preferredFailed ? preferredUrl : !fallbackFailed ? fallbackUrl : null;
   const maxHp = pokemon.maxHp ?? 100;
   const hpPercent = pokemon.fainted ? 0 : Math.max(0, Math.min(100, (pokemon.currentHp / maxHp) * 100));
   const hpColorClass = hpPercent > 50 ? 'hp-high' : hpPercent > 20 ? 'hp-mid' : 'hp-low';
@@ -525,6 +534,7 @@ function BattleStageSlot({ pokemon, facing }: { pokemon: PokemonState; facing: '
           src={spriteUrl}
           alt={label}
           loading="lazy"
+          onError={() => (!preferredFailed ? setPreferredFailed(true) : setFallbackFailed(true))}
         />
       ) : (
         <div className="battle-stage-sprite-placeholder" />
@@ -826,34 +836,41 @@ function PokemonSprite({
   megaForme: string | null;
   size?: number;
 }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [broken, setBroken] = useState(false);
+  const [candidates, setCandidates] = useState<string[]>([]);
+  const [attemptIndex, setAttemptIndex] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    setUrl(null);
-    setBroken(false);
-    resolveSpriteUrl(species, isMegaEvolved, megaForme).then((resolved) => {
-      if (!cancelled) setUrl(resolved);
+    setCandidates([]);
+    setAttemptIndex(0);
+    resolveSpriteCandidates(species, isMegaEvolved, megaForme).then((resolved) => {
+      if (!cancelled) setCandidates(resolved);
     });
     return () => {
       cancelled = true;
     };
   }, [species, isMegaEvolved, megaForme]);
 
-  if (!url || broken) {
+  const currentUrl = candidates[attemptIndex];
+
+  if (!currentUrl) {
     return <div className="pokemon-sprite-placeholder" style={{ width: size, height: size }} />;
   }
 
   return (
     <img
       className="pokemon-sprite"
-      src={url}
+      src={currentUrl}
       alt={species}
       width={size}
       height={size}
       loading="lazy"
-      onError={() => setBroken(true)}
+      // Si cette URL échoue au chargement (ex: illustration officielle
+      // manquante pour cette espèce), on passe à la suivante de la liste
+      // (sprite in-game classique) plutôt que d'abandonner directement —
+      // filet de sécurité pour le chemin rapide statique, qui construit ses
+      // URLs sans vérification réseau préalable.
+      onError={() => setAttemptIndex((i) => i + 1)}
     />
   );
 }
