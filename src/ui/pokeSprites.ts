@@ -232,22 +232,50 @@ async function fetchSpriteSetForSlug(slug: string): Promise<SpriteSet> {
  * forme Mega si applicable, puis son espèce de base. Retourne null si rien
  * n'a été trouvé (espèce hors PokeAPI, hors-ligne...). Utilisé pour les
  * icônes/cartes (PokemonCard, TeamCard).
+ *
+ * ATTENTION : le chemin rapide statique (espèce de base connue) construit
+ * l'URL SANS vérifier qu'elle existe vraiment (pas d'appel réseau, exprès,
+ * pour la vitesse) — si jamais l'illustration officielle manque pour une
+ * espèce donnée, cette fonction seule ne peut pas le détecter. Préférer
+ * `resolveSpriteCandidates` côté composant React, qui permet un vrai repli
+ * en cascade si la première image échoue au chargement (`<img onError>`).
  */
 export async function resolveSpriteUrl(
   species: string,
   isMegaEvolved: boolean,
   megaForme: string | null,
 ): Promise<string | null> {
+  const candidates = await resolveSpriteCandidates(species, isMegaEvolved, megaForme);
+  return candidates[0] ?? null;
+}
+
+/**
+ * Retourne la liste ORDONNÉE des URLs de sprite à essayer pour ce Pokémon
+ * (illustration officielle d'abord, puis sprite in-game classique) — le
+ * composant appelant doit passer à l'URL suivante si la précédente échoue
+ * au chargement (`<img onError>`), plutôt que d'abandonner directement.
+ * C'est le filet de sécurité du chemin rapide statique : celui-ci construit
+ * des URLs sans vérification réseau préalable, donc une image manquante ne
+ * peut être détectée qu'au moment du rendu, pas avant.
+ */
+export async function resolveSpriteCandidates(
+  species: string,
+  isMegaEvolved: boolean,
+  megaForme: string | null,
+): Promise<string[]> {
   if (!isMegaEvolved) {
     const dexId = SPECIES_TO_DEX_ID[species];
-    if (dexId) return getStaticSpriteSet(dexId).officialArtwork;
+    if (dexId) {
+      const staticSet = getStaticSpriteSet(dexId);
+      return [staticSet.officialArtwork, staticSet.front].filter((u): u is string => u !== null);
+    }
   }
   for (const slug of getSpriteCandidateSlugs(species, isMegaEvolved, megaForme)) {
     const spriteSet = await fetchSpriteSetForSlug(slug);
-    const url = spriteSet.officialArtwork ?? spriteSet.front;
-    if (url) return url;
+    const urls = [spriteSet.officialArtwork, spriteSet.front].filter((u): u is string => u !== null);
+    if (urls.length > 0) return urls;
   }
-  return null;
+  return [];
 }
 
 /**
