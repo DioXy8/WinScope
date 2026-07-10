@@ -99,6 +99,54 @@ describe('chemin rapide statique (espèces de base connues, sans appel réseau)'
   });
 });
 
+describe('resolveSpriteCandidates (liste de secours en cascade)', () => {
+  beforeEach(() => {
+    installLocalStorageMock();
+    vi.resetModules();
+    vi.unstubAllGlobals();
+    installLocalStorageMock();
+  });
+
+  it('retourne [officialArtwork, front] pour une espèce de base (chemin statique)', async () => {
+    const { resolveSpriteCandidates } = await import('../pokeSprites');
+    const candidates = await resolveSpriteCandidates('Incineroar', false, null);
+    expect(candidates).toEqual([
+      'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/727.png',
+      'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/727.png',
+    ]);
+  });
+
+  it('resolveSpriteUrl reste rétro-compatible : retourne juste le premier candidat', async () => {
+    const { resolveSpriteUrl } = await import('../pokeSprites');
+    const url = await resolveSpriteUrl('Incineroar', false, null);
+    expect(url).toBe(
+      'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/727.png',
+    );
+  });
+
+  it('retourne une liste avec seulement l’URL disponible si l’API REST ne renvoie qu’une des deux (cas Mega)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          sprites: { front_default: 'https://example.com/mega-front.png', other: {} },
+        }),
+      }),
+    );
+    const { resolveSpriteCandidates } = await import('../pokeSprites');
+    const candidates = await resolveSpriteCandidates('Swampert', true, 'Mega Swampert');
+    expect(candidates).toEqual(['https://example.com/mega-front.png']);
+  });
+
+  it('retourne un tableau vide si rien n’est trouvé du tout', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }));
+    const { resolveSpriteCandidates } = await import('../pokeSprites');
+    const candidates = await resolveSpriteCandidates('Definitely Not A Pokemon', false, null);
+    expect(candidates).toEqual([]);
+  });
+});
+
 describe('resolveSpriteUrl (repli API REST — Mega ou formes absentes de la table statique)', () => {
   beforeEach(() => {
     installLocalStorageMock();
