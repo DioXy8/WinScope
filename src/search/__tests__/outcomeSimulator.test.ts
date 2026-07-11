@@ -477,4 +477,121 @@ describe('simulateTurn', () => {
       expect(incineroar.currentHp).toBeLessThan(incineroar.maxHp ?? 190);
     }
   });
+
+  it('Rage Powder redirige un move single-target visant l’allié vers le lanceur', () => {
+    let battle = createInitialBattleState();
+    const sinistcha = {
+      ...createInitialPokemonState({ species: 'Sinistcha', side: 'p1', level: 50 }),
+      position: 'p1a' as const,
+      maxHp: 150,
+      currentHp: 150,
+      hpIsPercentage: false,
+    };
+    const incineroar = {
+      ...createInitialPokemonState({ species: 'Incineroar', side: 'p1', level: 50 }),
+      position: 'p1b' as const,
+      maxHp: 190,
+      currentHp: 190,
+      hpIsPercentage: false,
+    };
+    const garchomp = {
+      ...createInitialPokemonState({ species: 'Garchomp', side: 'p2', level: 50 }),
+      position: 'p2a' as const,
+      maxHp: 190,
+      currentHp: 190,
+      hpIsPercentage: false,
+    };
+    battle = {
+      ...battle,
+      pokemonByKey: { 'p1:Sinistcha': sinistcha, 'p1:Incineroar': incineroar, 'p2:Garchomp': garchomp },
+      activeByPosition: { p1a: 'p1:Sinistcha', p1b: 'p1:Incineroar', p2a: 'p2:Garchomp' },
+    };
+
+    const ragePowder: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Sinistcha',
+      userPosition: 'p1a',
+      moveName: 'Rage Powder',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+    // Dragon Claw : single-target (pas de zone), neutre contre Grass/Ghost
+    // (Sinistcha) donc dégâts non nuls garantis — contrairement à Earthquake
+    // (move de zone, ignoré volontairement par la redirection) ou Close
+    // Combat (Combat, auquel les Spectre sont immunisés).
+    const dragonClawAtIncineroar: MoveAction = {
+      kind: 'move',
+      userKey: 'p2:Garchomp',
+      userPosition: 'p2a',
+      moveName: 'Dragon Claw',
+      targetPositions: ['p1b'],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+
+    const branches = simulateTurn(battle, [ragePowder], [dragonClawAtIncineroar]);
+    for (const branch of branches) {
+      // Incineroar (cible d'origine) ne doit PAS avoir été touché : le coup
+      // a été redirigé vers Sinistcha (qui a lancé Rage Powder).
+      expect(branch.battle.pokemonByKey['p1:Incineroar'].currentHp).toBe(190);
+      expect(branch.battle.pokemonByKey['p1:Sinistcha'].currentHp).toBeLessThan(150);
+    }
+  });
+
+  it('Rage Powder NE redirige PAS un move de zone (Earthquake reste sur ses cibles normales)', () => {
+    let battle = createInitialBattleState();
+    const sinistcha = {
+      ...createInitialPokemonState({ species: 'Sinistcha', side: 'p1', level: 50 }),
+      position: 'p1a' as const,
+      maxHp: 150,
+      currentHp: 150,
+      hpIsPercentage: false,
+    };
+    const incineroar = {
+      ...createInitialPokemonState({ species: 'Incineroar', side: 'p1', level: 50 }),
+      position: 'p1b' as const,
+      maxHp: 190,
+      currentHp: 190,
+      hpIsPercentage: false,
+    };
+    const garchomp = {
+      ...createInitialPokemonState({ species: 'Garchomp', side: 'p2', level: 50 }),
+      position: 'p2a' as const,
+      maxHp: 190,
+      currentHp: 190,
+      hpIsPercentage: false,
+    };
+    battle = {
+      ...battle,
+      pokemonByKey: { 'p1:Sinistcha': sinistcha, 'p1:Incineroar': incineroar, 'p2:Garchomp': garchomp },
+      activeByPosition: { p1a: 'p1:Sinistcha', p1b: 'p1:Incineroar', p2a: 'p2:Garchomp' },
+    };
+
+    const ragePowder: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Sinistcha',
+      userPosition: 'p1a',
+      moveName: 'Rage Powder',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+    const earthquakeSpread: MoveAction = {
+      kind: 'move',
+      userKey: 'p2:Garchomp',
+      userPosition: 'p2a',
+      moveName: 'Earthquake',
+      targetPositions: ['p1a', 'p1b'],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+
+    const branches = simulateTurn(battle, [ragePowder], [earthquakeSpread]);
+    for (const branch of branches) {
+      // Earthquake est un move de zone : il touche ses 2 cibles normales,
+      // Rage Powder ne le redirige PAS entièrement sur Sinistcha seul.
+      expect(branch.battle.pokemonByKey['p1:Incineroar'].currentHp).toBeLessThan(190);
+    }
+  });
 });
