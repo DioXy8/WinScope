@@ -231,6 +231,45 @@ function applyBoostDelta(pokemon: PokemonState, delta: Partial<Record<StatId, nu
   return { ...pokemon, boosts: nextBoosts };
 }
 
+/**
+ * Rage Powder / Follow Me : redirigent vers le lanceur tous les moves
+ * single-target adverses visant un autre Pokémon de son côté ce tour-ci.
+ * Ne redirige PAS les moves de zone (Earthquake, Dazzling Gleam...), qui
+ * touchent leurs cibles normales quoi qu'il arrive — comportement réel.
+ */
+const REDIRECT_MOVES = new Set(['Rage Powder', 'Follow Me']);
+
+/**
+ * Si `moveName` est un move single-target (pas de zone) et qu'un Pokémon
+ * actif du côté visé a activé Rage Powder/Follow Me ce tour, renvoie sa
+ * position à la place de la cible d'origine. Sinon renvoie la position
+ * inchangée. Simplification assumée : ignore les exceptions d'immunité à
+ * la redirection (Overcoat contre Rage Powder, types Vol/Odorat immunisé
+ * contre Rage Powder spécifiquement) — un cas plus rare que la redirection
+ * elle-même, à affiner si besoin plutôt que d'alourdir cette première passe.
+ */
+function resolveRedirectedTarget(
+  battle: BattleState,
+  attackerSide: 'p1' | 'p2',
+  moveName: string,
+  targetPosition: PokemonPosition,
+): PokemonPosition {
+  if (isSpreadMove(moveName)) return targetPosition;
+  const targetSide = targetPosition.startsWith('p1') ? 'p1' : 'p2';
+  // La redirection ne s'applique qu'aux moves visant le côté ADVERSE — un
+  // move de soutien visant son propre allié (Helping Hand, Pollen Puff...)
+  // ne doit jamais être redirigé même si cet allié a activé Rage Powder.
+  if (targetSide === attackerSide) return targetPosition;
+  for (const [pos, key] of Object.entries(battle.activeByPosition)) {
+    if (!pos.startsWith(targetSide)) continue;
+    const p = battle.pokemonByKey[key];
+    if (p && !p.fainted && p.volatiles.has('Redirect')) {
+      return pos as PokemonPosition;
+    }
+  }
+  return targetPosition;
+}
+
 function applySingleAction(
   battle: BattleState,
   action: PlayerAction,
@@ -243,6 +282,21 @@ function applySingleAction(
   }
 
   if (action.targetPositions.length === 0) {
+    if (REDIRECT_MOVES.has(action.moveName)) {
+      const userPokemon = battle.pokemonByKey[action.userKey];
+      if (!userPokemon || userPokemon.fainted) {
+        return { battle, notes: [`${action.moveName} (utilisateur indisponible)`] };
+      }
+      const nextBattle = updatePokemonInBattle(battle, action.userKey, (p) => ({
+        ...p,
+        volatiles: new Set(p.volatiles).add('Redirect'),
+      }));
+      return {
+        battle: nextBattle,
+        notes: [`${action.moveName} (${userPokemon.species}): redirige les attaques ciblées ce tour`],
+      };
+    }
+
     const guardName = sideGuardVolatileName(action.moveName);
     if (guardName) {
       const userPokemon = battle.pokemonByKey[action.userKey];
@@ -295,11 +349,12 @@ function applySingleAction(
   let current = battle;
   const notes: string[] = [];
   for (const targetPosition of action.targetPositions) {
+    const redirectedTarget = resolveRedirectedTarget(current, attackerSide, action.moveName, targetPosition);
     const { battle: next, note } = applyMoveHitOnTarget(
       current,
       action.userKey,
       attackerSide,
-      targetPosition,
+      redirectedTarget,
       action.moveName,
       isCritical,
     );
