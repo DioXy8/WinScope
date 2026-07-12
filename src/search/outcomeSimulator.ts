@@ -26,7 +26,22 @@
  */
 
 import { markFainted, resetOnSwitchOut, setHp, setPosition } from '../engine/pokemon';
-import type { BattleState, PokemonState } from '../engine/state';
+import type { BattleState, PokemonState, TerrainCondition, WeatherCondition } from '../engine/state';
+import {
+  setWeather,
+  setTerrain,
+  setTrickRoom,
+  setTailwind,
+  setReflect,
+  setLightScreen,
+  setAuroraVeil,
+  addSpikes,
+  setToxicSpikes,
+  setStealthRock,
+  setStickyWeb,
+  updateField,
+  updateSide,
+} from '../engine/field';
 import { calculateDamage } from '../damagecalc/damageCalc';
 import { buildVendorPokemon, isOffensiveMove, isSpreadMove } from '../damagecalc/adapter';
 import { getMoveAccuracyFraction, getMoveTargetInfo } from './actionGenerator';
@@ -206,6 +221,83 @@ function sideGuardVolatileName(moveName: string): 'QuickGuard' | 'WideGuard' | '
   return null;
 }
 
+/** Moves qui posent une météo (portée : tout le terrain). */
+const WEATHER_MOVES: Record<string, WeatherCondition> = {
+  'Rain Dance': 'rain',
+  'Sunny Day': 'sun',
+  Sandstorm: 'sand',
+  Snowscape: 'snow',
+  Hail: 'snow',
+};
+
+/** Moves qui posent un terrain électrique/herbu/brumeux/psychique (portée : tout le terrain). */
+const TERRAIN_MOVES: Record<string, TerrainCondition> = {
+  'Electric Terrain': 'electric',
+  'Grassy Terrain': 'grassy',
+  'Misty Terrain': 'misty',
+  'Psychic Terrain': 'psychic',
+};
+
+/** Écrans (portée : le camp du lanceur uniquement). */
+const SCREEN_MOVES = new Set(['Reflect', 'Light Screen', 'Aurora Veil']);
+
+/** Hazards (portée : le camp ADVERSE, contrairement aux écrans/Tailwind). */
+const HAZARD_MOVES = new Set(['Stealth Rock', 'Spikes', 'Sticky Web', 'Toxic Spikes']);
+
+/**
+ * Applique l'effet d'un move de terrain/camp connu (météo, terrain, Trick
+ * Room, Tailwind, écrans, hazards) au BattleState, en réutilisant les mêmes
+ * fonctions pures que le traitement du VRAI replay (engine/field.ts) —
+ * cohérent avec la façon dont ces conditions sont déjà lues correctement
+ * par speedOrder.ts et damagecalc/adapter.ts une fois posées.
+ *
+ * LIMITE ASSUMÉE ET DOCUMENTÉE : l'ordre des actions de CE tour est déjà
+ * figé avant le début de la simulation (calculé une seule fois sur l'état
+ * de départ, cf. plus bas). Poser Tailwind ou Trick Room pendant ce tour
+ * met donc bien à jour l'état résultant (correctement lu pour le reste du
+ * combat, y compris par l'évaluateur), mais ne réordonne PAS
+ * rétroactivement les actions restantes de ce même tour — un allié plus
+ * lent bénéficiant du Tailwind fraîchement posé ce tour ne joue pas plus
+ * tôt dans CETTE simulation. Corriger ça demanderait de recalculer l'ordre
+ * après chaque action plutôt qu'une fois au début — un chantier à part.
+ */
+function applyFieldOrSideMove(
+  battle: BattleState,
+  userPokemon: PokemonState,
+  moveName: string,
+): BattleState | null {
+  if (moveName in WEATHER_MOVES) {
+    return updateField(battle, (f) => setWeather(f, WEATHER_MOVES[moveName]));
+  }
+  if (moveName in TERRAIN_MOVES) {
+    return updateField(battle, (f) => setTerrain(f, TERRAIN_MOVES[moveName]));
+  }
+  if (moveName === 'Trick Room') {
+    // Trick Room bascule : si déjà actif, le relancer l'annule.
+    return updateField(battle, (f) => setTrickRoom(f, !f.isTrickRoom));
+  }
+  if (moveName === 'Tailwind') {
+    return updateSide(battle, userPokemon.side, (s) => setTailwind(s, true));
+  }
+  if (SCREEN_MOVES.has(moveName)) {
+    return updateSide(battle, userPokemon.side, (s) => {
+      if (moveName === 'Reflect') return setReflect(s, true);
+      if (moveName === 'Light Screen') return setLightScreen(s, true);
+      return setAuroraVeil(s, true);
+    });
+  }
+  if (HAZARD_MOVES.has(moveName)) {
+    const opposingSide = userPokemon.side === 'p1' ? 'p2' : 'p1';
+    return updateSide(battle, opposingSide, (s) => {
+      if (moveName === 'Stealth Rock') return setStealthRock(s, true);
+      if (moveName === 'Sticky Web') return setStickyWeb(s, true);
+      if (moveName === 'Toxic Spikes') return setToxicSpikes(s, true);
+      return addSpikes(s);
+    });
+  }
+  return null;
+}
+
 /**
  * Famille "Protect" classique (protection totale contre un move ciblé,
  * priorité +4) — la portée est différente des protections de zone
@@ -282,6 +374,14 @@ function applySingleAction(
   }
 
   if (action.targetPositions.length === 0) {
+    const fieldOrSideUser = battle.pokemonByKey[action.userKey];
+    if (fieldOrSideUser && !fieldOrSideUser.fainted) {
+      const fieldOrSideResult = applyFieldOrSideMove(battle, fieldOrSideUser, action.moveName);
+      if (fieldOrSideResult) {
+        return { battle: fieldOrSideResult, notes: [`${action.moveName} (${fieldOrSideUser.species})`] };
+      }
+    }
+
     if (REDIRECT_MOVES.has(action.moveName)) {
       const userPokemon = battle.pokemonByKey[action.userKey];
       if (!userPokemon || userPokemon.fainted) {
