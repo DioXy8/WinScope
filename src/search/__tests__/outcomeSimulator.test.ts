@@ -594,4 +594,117 @@ describe('simulateTurn', () => {
       expect(branch.battle.pokemonByKey['p1:Incineroar'].currentHp).toBeLessThan(190);
     }
   });
+
+  it('Rain Dance pose bien la météo pluie dans l’état simulé', () => {
+    const battle = setupSimpleBattle();
+    const rainDance: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Incineroar',
+      userPosition: 'p1a',
+      moveName: 'Rain Dance',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+    const branches = simulateTurn(battle, [rainDance], []);
+    expect(branches[0].battle.field.weather).toBe('rain');
+    expect(branches[0].battle.field.weatherTurnsLeft).toBeGreaterThan(0);
+  });
+
+  it('Electric Terrain pose bien le terrain dans l’état simulé', () => {
+    const battle = setupSimpleBattle();
+    const electricTerrain: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Incineroar',
+      userPosition: 'p1a',
+      moveName: 'Electric Terrain',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+    const branches = simulateTurn(battle, [electricTerrain], []);
+    expect(branches[0].battle.field.terrain).toBe('electric');
+  });
+
+  it('Trick Room active bien isTrickRoom dans l’état simulé', () => {
+    const battle = setupSimpleBattle();
+    const trickRoom: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Incineroar',
+      userPosition: 'p1a',
+      moveName: 'Trick Room',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+    const branches = simulateTurn(battle, [trickRoom], []);
+    expect(branches[0].battle.field.isTrickRoom).toBe(true);
+  });
+
+  it('Tailwind active isTailwind sur le côté du lanceur uniquement', () => {
+    const battle = setupSimpleBattle();
+    const tailwind: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Incineroar',
+      userPosition: 'p1a',
+      moveName: 'Tailwind',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+    const branches = simulateTurn(battle, [tailwind], []);
+    expect(branches[0].battle.sides.p1.isTailwind).toBe(true);
+    expect(branches[0].battle.sides.p2.isTailwind).toBe(false);
+  });
+
+  it('Reflect active isReflect sur le côté du lanceur uniquement', () => {
+    const battle = setupSimpleBattle();
+    const reflect: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Incineroar',
+      userPosition: 'p1a',
+      moveName: 'Reflect',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+    const branches = simulateTurn(battle, [reflect], []);
+    expect(branches[0].battle.sides.p1.isReflect).toBe(true);
+    expect(branches[0].battle.sides.p2.isReflect).toBe(false);
+  });
+
+  it('Stealth Rock pose les hazards sur le côté ADVERSE, pas celui du lanceur', () => {
+    const battle = setupSimpleBattle();
+    const stealthRock: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Incineroar',
+      userPosition: 'p1a',
+      moveName: 'Stealth Rock',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+    const branches = simulateTurn(battle, [stealthRock], []);
+    expect(branches[0].battle.sides.p2.stealthRock).toBe(true);
+    expect(branches[0].battle.sides.p1.stealthRock).toBe(false);
+  });
+
+  it('Spikes s’accumule (jusqu’à 3 couches) côté adverse', () => {
+    let battle = setupSimpleBattle();
+    battle = {
+      ...battle,
+      sides: { ...battle.sides, p2: { ...battle.sides.p2, spikes: 1 } },
+    };
+    const spikes: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Incineroar',
+      userPosition: 'p1a',
+      moveName: 'Spikes',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+    const branches = simulateTurn(battle, [spikes], []);
+    expect(branches[0].battle.sides.p2.spikes).toBe(2);
+  });
 });
