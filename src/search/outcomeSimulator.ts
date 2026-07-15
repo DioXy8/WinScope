@@ -251,15 +251,12 @@ const HAZARD_MOVES = new Set(['Stealth Rock', 'Spikes', 'Sticky Web', 'Toxic Spi
  * cohérent avec la façon dont ces conditions sont déjà lues correctement
  * par speedOrder.ts et damagecalc/adapter.ts une fois posées.
  *
- * LIMITE ASSUMÉE ET DOCUMENTÉE : l'ordre des actions de CE tour est déjà
- * figé avant le début de la simulation (calculé une seule fois sur l'état
- * de départ, cf. plus bas). Poser Tailwind ou Trick Room pendant ce tour
- * met donc bien à jour l'état résultant (correctement lu pour le reste du
- * combat, y compris par l'évaluateur), mais ne réordonne PAS
- * rétroactivement les actions restantes de ce même tour — un allié plus
- * lent bénéficiant du Tailwind fraîchement posé ce tour ne joue pas plus
- * tôt dans CETTE simulation. Corriger ça demanderait de recalculer l'ordre
- * après chaque action plutôt qu'une fois au début — un chantier à part.
+ * L'ordre des actions du tour est recalculé à chaque étape (pas figé une
+ * fois au début, cf. simulateTurn) : poser Tailwind/Trick Room ici met bien
+ * à jour l'état résultant, ET les actions restantes de CE MÊME tour en
+ * tiennent compte pour décider qui agit ensuite — un allié plus lent
+ * bénéficiant d'un Tailwind fraîchement posé ce tour joue bien plus tôt
+ * dans la simulation.
  */
 function applyFieldOrSideMove(
   battle: BattleState,
@@ -466,9 +463,12 @@ function applySingleAction(
 
 /**
  * Simule un tour complet : jusqu'à 4 actions (2 par camp), dans l'ordre de
- * vitesse réel, en générant une branche par combinaison (touché/raté) ×
- * (crit/non-crit) pour chaque action offensive. Retourne la liste de
- * branches pondérées, dont la somme des probabilités vaut 1.
+ * vitesse réel — recalculé à chaque action traitée (pas figé une fois au
+ * début), donc un Tailwind/Trick Room posé en cours de tour affecte
+ * correctement l'ordre des actions restantes de ce même tour — en générant
+ * une branche par combinaison (touché/raté) × (crit/non-crit) pour chaque
+ * action offensive. Retourne la liste de branches pondérées, dont la somme
+ * des probabilités vaut 1.
  *
  * Avertissement combinatoire : avec N actions offensives à accuracy <100%,
  * le nombre de branches croît jusqu'à 4^N (accuracy × crit). Avec 4 actions
@@ -481,21 +481,13 @@ export function simulateTurn(
   p1Actions: PlayerAction[],
   p2Actions: PlayerAction[],
 ): SimulationBranch[] {
-  const speedContext = buildSpeedContextFromBattle(battle);
-
   const switchActions = [...p1Actions, ...p2Actions].filter(
     (a): a is PlayerAction & { kind: 'switch' } => a.kind === 'switch',
   );
-  const moveActionsWithSide: { action: PlayerAction; side: 'p1' | 'p2' }[] = [
+  const remainingMoveActions: { action: PlayerAction; side: 'p1' | 'p2' }[] = [
     ...p1Actions.filter((a) => a.kind === 'move').map((action) => ({ action, side: 'p1' as const })),
     ...p2Actions.filter((a) => a.kind === 'move').map((action) => ({ action, side: 'p2' as const })),
   ];
-
-  moveActionsWithSide.sort((a, b) => {
-    if (actsBefore(a.action, b.action, speedContext)) return -1;
-    if (actsBefore(b.action, a.action, speedContext)) return 1;
-    return 0;
-  });
 
   let branches: SimulationBranch[] = [{ battle, probability: 1, notes: [] }];
 
@@ -506,7 +498,29 @@ export function simulateTurn(
     });
   }
 
-  for (const { action, side } of moveActionsWithSide) {
+  // Ordre RECALCULÉ à chaque action traitée plutôt que figé une seule fois
+  // au début : si une action pose Tailwind/Trick Room (déterministe, jamais
+  // de probabilité de rater — donc l'état de terrain ne diverge jamais
+  // entre branches, contrairement au statut K.O.), les actions restantes de
+  // CE MÊME tour en tiennent compte pour décider qui agit ensuite. Avant ce
+  // correctif, l'ordre était calculé une fois sur l'état de départ : un
+  // allié plus lent bénéficiant d'un Tailwind fraîchement posé ce tour ne
+  // jouait jamais plus tôt dans la simulation.
+  while (remainingMoveActions.length > 0) {
+    const referenceBattle = branches[0]?.battle ?? battle;
+    const currentSpeedContext = buildSpeedContextFromBattle(referenceBattle);
+
+    let nextIndex = 0;
+    for (let i = 1; i < remainingMoveActions.length; i++) {
+      if (
+        actsBefore(remainingMoveActions[i].action, remainingMoveActions[nextIndex].action, currentSpeedContext)
+      ) {
+        nextIndex = i;
+      }
+    }
+    const { action, side } = remainingMoveActions[nextIndex];
+    remainingMoveActions.splice(nextIndex, 1);
+
     if (action.kind !== 'move') continue;
     const accuracyFraction = getMoveAccuracyFraction(action.moveName);
     const hasOffensiveTarget = action.targetPositions.length > 0;
