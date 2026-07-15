@@ -11,8 +11,8 @@ import type { DamageCalcResult } from '../damagecalc/damageCalc';
 import { isOffensiveMove, isSpreadMove, getSetConfidence, getKnownMoves, resolveDexName } from '../damagecalc/adapter';
 import { resolveBattleSprites, resolveSpriteCandidates } from './pokeSprites';
 import { resolveMegaForme } from '../engine/megaStones';
-import { analyzeActionsForPosition, getBestWinExpectancyForSide } from '../search/turnAnalyzer';
-import type { ActionScore } from '../search/turnAnalyzer';
+import { searchBestActions, getDeepBestWinExpectancyForSide, FAST_TREND_SEARCH_OPTIONS } from '../search/minimax';
+import type { DeepActionScore } from '../search/minimax';
 import type { PlayerAction } from '../search/actionTypes';
 import type { PokemonPosition } from '../replay/types';
 import { parsePokePaste } from '../sets/pokepasteParser';
@@ -580,7 +580,11 @@ function BattleExplorer({
         // la progression plutôt que de bloquer le thread pendant tout le calcul.
         await new Promise((resolve) => requestAnimationFrame(resolve));
         if (cancelled) return;
-        const best = getBestWinExpectancyForSide(states[i], 'p1');
+        // Config volontairement légère (1 tour, peu de candidats) car ce
+        // calcul tourne pour CHAQUE tour du replay : la recherche adversariale
+        // multi-tours complète (searchBestActions/DEFAULT_SEARCH_OPTIONS) est
+        // réservée à l'analyse à la demande (bouton "Analyser" ci-dessous).
+        const best = getDeepBestWinExpectancyForSide(states[i], 'p1', FAST_TREND_SEARCH_OPTIONS);
         const value = best ?? fallbackProbabilities[i];
         setComputedProbabilities((prev) => {
           const next = [...prev];
@@ -1332,7 +1336,7 @@ type AnalysisState =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'done'; scores: ActionScore[] };
+  | { status: 'done'; scores: DeepActionScore[] };
 
 function describeActionShort(action: PlayerAction, battle: BattleState): string {
   if (action.kind === 'switch') {
@@ -1421,11 +1425,12 @@ function PositionAnalysisCard({
     if (!pokemon) return;
     setState({ status: 'loading' });
     setShowAll(false);
-    // Calcul synchrone mais potentiellement coûteux (~100-300ms en doubles) :
-    // on le différe d'une frame pour laisser l'UI afficher le spinner avant de bloquer.
+    // Calcul synchrone mais coûteux (recherche adversariale multi-tours,
+    // potentiellement plusieurs centaines de ms en doubles) : on le différe
+    // d'une frame pour laisser l'UI afficher le spinner avant de bloquer.
     requestAnimationFrame(() => {
       try {
-        const scores = analyzeActionsForPosition(battle, position, null);
+        const scores = searchBestActions(battle, position, null);
         setState({ status: 'done', scores });
       } catch (err) {
         setState({ status: 'error', message: (err as Error).message });
