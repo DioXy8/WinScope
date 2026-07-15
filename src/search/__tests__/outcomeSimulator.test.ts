@@ -707,4 +707,141 @@ describe('simulateTurn', () => {
     const branches = simulateTurn(battle, [spikes], []);
     expect(branches[0].battle.sides.p2.spikes).toBe(2);
   });
+
+  it('Tailwind posé CE tour réordonne bien les actions restantes du même tour (le chantier) — régression clé', () => {
+    // Whimsicott (spe 116, rapide) pose Tailwind. Torkoal (spe 20, lent,
+    // effectif ~40) attaque normalement APRÈS Kingambit (spe 50, effectif
+    // ~70) — mais une fois Tailwind actif côté p1, Torkoal double son
+    // effectif à ~80, dépassant Kingambit (~70) : il doit maintenant agir
+    // AVANT lui, alors que l'ordre "figé au début du tour" (avant ce
+    // correctif) l'aurait laissé après.
+    let battle = createInitialBattleState();
+    const whimsicott = {
+      ...createInitialPokemonState({ species: 'Whimsicott', side: 'p1', level: 50 }),
+      position: 'p1a' as const,
+      maxHp: 150,
+      currentHp: 150,
+      hpIsPercentage: false,
+    };
+    const torkoal = {
+      ...createInitialPokemonState({ species: 'Torkoal', side: 'p1', level: 50 }),
+      position: 'p1b' as const,
+      maxHp: 150,
+      currentHp: 150,
+      hpIsPercentage: false,
+    };
+    const kingambit = {
+      ...createInitialPokemonState({ species: 'Kingambit', side: 'p2', level: 50 }),
+      position: 'p2a' as const,
+      maxHp: 190,
+      currentHp: 190,
+      hpIsPercentage: false,
+    };
+    battle = {
+      ...battle,
+      pokemonByKey: { 'p1:Whimsicott': whimsicott, 'p1:Torkoal': torkoal, 'p2:Kingambit': kingambit },
+      activeByPosition: { p1a: 'p1:Whimsicott', p1b: 'p1:Torkoal', p2a: 'p2:Kingambit' },
+    };
+
+    const tailwind: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Whimsicott',
+      userPosition: 'p1a',
+      moveName: 'Tailwind',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+    const torkoalAttack: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Torkoal',
+      userPosition: 'p1b',
+      moveName: 'Body Press',
+      targetPositions: ['p2a'],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+    const kingambitAttack: MoveAction = {
+      kind: 'move',
+      userKey: 'p2:Kingambit',
+      userPosition: 'p2a',
+      moveName: "Kowtow Cleave",
+      targetPositions: ['p1b'],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+
+    const branches = simulateTurn(battle, [tailwind, torkoalAttack], [kingambitAttack]);
+    for (const branch of branches) {
+      const torkoalNoteIndex = branch.notes.findIndex((n) => n.includes('Body Press'));
+      expect(torkoalNoteIndex).toBeGreaterThanOrEqual(0);
+      // Torkoal a bien agi (a infligé des dégâts à Kingambit)...
+      expect(branch.battle.pokemonByKey['p2:Kingambit'].currentHp).toBeLessThan(190);
+      // ...et Kingambit n'a PU riposter : soit il K.O. avant son tour (preuve
+      // directe que Torkoal a agi avant lui grâce au Tailwind), soit sa
+      // propre attaque apparaît bien APRÈS celle de Torkoal dans l'ordre.
+      const kingambitFainted = branch.battle.pokemonByKey['p2:Kingambit'].fainted;
+      const kingambitNoteIndex = branch.notes.findIndex((n) => n.includes('Kowtow Cleave'));
+      if (!kingambitFainted) {
+        expect(kingambitNoteIndex).toBeGreaterThanOrEqual(0);
+        expect(torkoalNoteIndex).toBeLessThan(kingambitNoteIndex);
+      } else {
+        expect(branch.battle.pokemonByKey['p1:Torkoal'].currentHp).toBe(150); // jamais touché en retour
+      }
+    }
+  });
+
+  it('contre-épreuve : SANS Tailwind, Kingambit (plus rapide) agit bien avant Torkoal (lent)', () => {
+    // Même configuration que le test précédent, mais sans Tailwind : l'ordre
+    // normal doit s'appliquer (Kingambit spe ~70 > Torkoal spe ~40), pour
+    // bien isoler que c'est spécifiquement le Tailwind qui inverse l'ordre.
+    let battle = createInitialBattleState();
+    const torkoal = {
+      ...createInitialPokemonState({ species: 'Torkoal', side: 'p1', level: 50 }),
+      position: 'p1a' as const,
+      maxHp: 150,
+      currentHp: 150,
+      hpIsPercentage: false,
+    };
+    const kingambit = {
+      ...createInitialPokemonState({ species: 'Kingambit', side: 'p2', level: 50 }),
+      position: 'p2a' as const,
+      maxHp: 190,
+      currentHp: 190,
+      hpIsPercentage: false,
+    };
+    battle = {
+      ...battle,
+      pokemonByKey: { 'p1:Torkoal': torkoal, 'p2:Kingambit': kingambit },
+      activeByPosition: { p1a: 'p1:Torkoal', p2a: 'p2:Kingambit' },
+    };
+
+    const torkoalAttack: MoveAction = {
+      kind: 'move',
+      userKey: 'p1:Torkoal',
+      userPosition: 'p1a',
+      moveName: 'Body Press',
+      targetPositions: ['p2a'],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+    const kingambitAttack: MoveAction = {
+      kind: 'move',
+      userKey: 'p2:Kingambit',
+      userPosition: 'p2a',
+      moveName: 'Kowtow Cleave',
+      targetPositions: ['p1a'],
+      willMegaEvolve: false,
+      willTerastallize: false,
+    };
+
+    const branches = simulateTurn(battle, [torkoalAttack], [kingambitAttack]);
+    for (const branch of branches) {
+      const torkoalNoteIndex = branch.notes.findIndex((n) => n.includes('Body Press'));
+      const kingambitNoteIndex = branch.notes.findIndex((n) => n.includes('Kowtow Cleave'));
+      expect(kingambitNoteIndex).toBeGreaterThanOrEqual(0);
+      expect(torkoalNoteIndex).toBeGreaterThanOrEqual(0);
+      expect(kingambitNoteIndex).toBeLessThan(torkoalNoteIndex);
+    }
+  });
 });
