@@ -113,6 +113,85 @@ describe('searchBestActions', () => {
   });
 });
 
+describe('reachedTerminal', () => {
+  it('is true when the search actually resolves to a real win/loss (near-endgame, low HP)', () => {
+    const battle = setupLethalScenario(); // Garchomp pleine forme vs Incineroar à 20 HP
+    const scores = searchBestActions(battle, 'p1a', null, TINY_OPTIONS);
+    // Un KO immédiat (Earthquake) doit être une vraie fin de combat simulée, pas un repli sur l'heuristique.
+    const earthquake = scores.find((s) => s.action.kind === 'move' && s.action.moveName === 'Earthquake');
+    expect(earthquake?.reachedTerminal).toBe(true);
+  });
+
+  it('is false when the position is too far from any real ending for the given budget', () => {
+    // Board bien vivant des deux côtés : impossible de dérouler jusqu'à un vrai KO
+    // total avec un budget de noeuds minuscule -> repli honnête sur l'heuristique.
+    const battle = setupLethalScenario();
+    const scores = searchBestActions(battle, 'p1a', null, {
+      maxDepth: 40,
+      candidateBreadth: 2,
+      nodeBudget: 2,
+    });
+    expect(scores.some((s) => s.reachedTerminal === false)).toBe(true);
+  });
+});
+
+describe('forced replacement after a KO during search', () => {
+  it('lets the bench replacement actually fight (and be finished off) instead of freezing that side after the first KO', () => {
+    let battle = createInitialBattleState();
+    const garchomp = {
+      ...createInitialPokemonState({ species: 'Garchomp', side: 'p1', level: 50 }),
+      position: 'p1a' as const,
+      revealedMoves: ['Earthquake'],
+      maxHp: 190,
+      currentHp: 190,
+      hpIsPercentage: false,
+      hasBeenSentOut: true,
+    };
+    // Incineroar au bord de la mort : tombe dès le premier échange simulé.
+    const incineroar = {
+      ...createInitialPokemonState({ species: 'Incineroar', side: 'p2', level: 50 }),
+      position: 'p2a' as const,
+      revealedMoves: ['Flare Blitz'],
+      maxHp: 190,
+      currentHp: 5,
+      hpIsPercentage: false,
+      hasBeenSentOut: true,
+    };
+    // Venusaur au banc (pas immunisé à Earthquake, contrairement à un Pokémon
+    // Sol/Vol) : déjà envoyé une fois dans ce match (hasBeenSentOut: true),
+    // aussi à 5 HP — doit pouvoir remplacer Incineroar puis tomber à son tour
+    // si Earthquake continue de frapper.
+    const venusaur = {
+      ...createInitialPokemonState({ species: 'Venusaur', side: 'p2', level: 50 }),
+      position: null,
+      revealedMoves: ['Sludge Bomb'],
+      maxHp: 190,
+      currentHp: 5,
+      hpIsPercentage: false,
+      hasBeenSentOut: true,
+    };
+    battle = {
+      ...battle,
+      pokemonByKey: {
+        'p1:Garchomp': garchomp,
+        'p2:Incineroar': incineroar,
+        'p2:Venusaur': venusaur,
+      },
+      activeByPosition: { p1a: 'p1:Garchomp', p2a: 'p2:Incineroar' },
+    };
+
+    // maxDepth=4 : largement assez pour enchaîner "KO Incineroar" puis "KO le
+    // remplaçant" SI le remplacement forcé fonctionne. Sans lui, p2a resterait
+    // vide après le premier KO (aucune cible, plus aucune action pour p2), et le
+    // combat ne pourrait alors JAMAIS atteindre une vraie fin dans cette recherche
+    // même si Venusaur, en pleine forme "sur le papier", est censé pouvoir entrer.
+    const scores = searchBestActions(battle, 'p1a', null, { maxDepth: 6, candidateBreadth: 2, nodeBudget: 800 });
+    expect(scores.length).toBeGreaterThan(0);
+    expect(scores[0].reachedTerminal).toBe(true);
+    expect(scores[0].winExpectancy).toBe(100);
+  });
+});
+
 describe('getDeepBestWinExpectancyForSide', () => {
   it('returns a single-position score when only one pokemon is active per side', () => {
     const battle = setupLethalScenario();
