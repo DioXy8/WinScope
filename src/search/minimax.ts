@@ -16,8 +16,16 @@
  *      pas l'adversaire plus malin qu'un autre choix.
  *
  * Ce module change les deux :
- *   1. MULTI-TOURS : recherche récursive sur `maxDepth` tours complets,
- *      pas un seul.
+ *   1. MULTI-TOURS JUSQU'AU RÉSULTAT RÉEL : la recherche ne s'arrête plus
+ *      après un petit nombre fixe de tours — elle continue, tour après
+ *      tour, jusqu'à ce que le combat soit VRAIMENT terminé (un camp n'a
+ *      plus aucun Pokémon vivant) ou que le budget de calcul soit épuisé.
+ *      `maxDepth` reste une limite de sécurité (très large, ~40 tours) ;
+ *      c'est `nodeBudget` qui gouverne en pratique jusqu'où on regarde.
+ *      Chaque `DeepActionScore.reachedTerminal` dit honnêtement si la
+ *      ligne retenue est un résultat RÉELLEMENT simulé jusqu'au bout, ou
+ *      si elle s'appuie quelque part sur l'heuristique statique de secours
+ *      (evaluator.ts) faute d'avoir pu aller plus loin.
  *   2. ADVERSARIAL (noeud MIN) : à chaque tour simulé, on suppose que
  *      l'adversaire choisit, PARMI SES RÉPONSES PLAUSIBLES, celle qui
  *      MINIMISE notre espérance de victoire — un vrai noeud MIN de
@@ -48,7 +56,7 @@
  * mais pas l'optimum théorique exact d'un jeu à information imparfaite.
  */
 
-import type { BattleState } from '../engine/state';
+import type { BattleState, PokemonState } from '../engine/state';
 import type { PokemonPosition } from '../replay/types';
 import type { PlayerAction } from './actionTypes';
 import { analyzeActionsForPosition } from './turnAnalyzer';
@@ -76,9 +84,15 @@ export interface SearchOptions {
 }
 
 export const DEFAULT_SEARCH_OPTIONS: SearchOptions = {
-  maxDepth: 2,
+  // Volontairement large : l'idée n'est plus de s'arrêter après 2 tours,
+  // mais de pousser la simulation jusqu'à la fin RÉELLE du combat
+  // (isTerminal) chaque fois que c'est possible. En pratique, un match VGC
+  // dépasse rarement 25-30 tours, donc cette limite ne devrait quasiment
+  // jamais être la cause de l'arrêt — c'est `nodeBudget` qui gouverne
+  // vraiment combien de tours à l'avance on peut se permettre d'explorer.
+  maxDepth: 40,
   candidateBreadth: 3,
-  nodeBudget: 300,
+  nodeBudget: 600,
   rootOpponentRanking: 'accurate',
 };
 
@@ -100,6 +114,16 @@ export interface DeepActionScore {
   nodesSearched: number;
   /** true si le budget de noeuds a coupé la recherche avant d'avoir tout exploré à la profondeur demandée. */
   aborted: boolean;
+  /**
+   * true si la ligne retenue (celle qui explique winExpectancy) a été
+   * simulée jusqu'à une VRAIE fin de combat (isTerminal) sans jamais avoir
+   * besoin de se replier sur l'heuristique statique d'evaluator.ts. false
+   * signifie que winExpectancy s'appuie, à un moment de la ligne, sur une
+   * estimation plutôt que sur un résultat effectivement joué — le plus
+   * souvent en tout début/milieu de match, où le nombre de tours restants
+   * dépasse ce que `nodeBudget` permet d'explorer exhaustivement.
+   */
+  reachedTerminal: boolean;
 }
 
 interface SearchBudget {
@@ -110,6 +134,57 @@ interface SearchBudget {
 
 function activePositionsForSide(battle: BattleState, side: 'p1' | 'p2'): PokemonPosition[] {
   return (Object.keys(battle.activeByPosition) as PokemonPosition[]).filter((p) => p.startsWith(side));
+}
+
+/** Les positions actives ('p1a', 'p1b'...) que chaque camp occupe EN CE MOMENT au début de la recherche — le "format" (simple/double) ne change pas en cours de combat, donc ces slots restent ceux à reremplir après un K.O. tout au long de la recherche, même si `battle.activeByPosition` perd temporairement une entrée. */
+interface ExpectedSlots {
+  p1: PokemonPosition[];
+  p2: PokemonPosition[];
+}
+
+function computeExpectedSlots(battle: BattleState): ExpectedSlots {
+  return { p1: activePositionsForSide(battle, 'p1'), p2: activePositionsForSide(battle, 'p2') };
+}
+
+function healthFraction(p: PokemonState): number {
+  if (p.fainted) return 0;
+  const maxHp = p.maxHp ?? 100;
+  return Math.max(0, Math.min(1, p.currentHp / maxHp));
+}
+
+/**
+ * Après un K.O. simulé, `outcomeSimulator.ts` retire simplement la position
+ * de `activeByPosition` (cf. son commentaire : le vrai replay fournira le
+ * switch de remplacement comme action suivante). Pour une recherche qui
+ * CONTINUE au-delà de ce point (plusieurs tours de profondeur), il faut
+ * nous-mêmes reremplir ces slots avec un Pokémon du banc, sans quoi ce camp
+ * resterait figé à un seul actif pour le reste de la recherche même s'il
+ * lui reste des remplaçants en pleine forme — biaisant lourdement
+ * l'évaluation (un round KO qui devrait juste coûter un Pokémon serait vu
+ * comme un near-wipe permanent).
+ *
+ * Heuristique de choix du remplaçant (pas de recherche dédiée sur CE choix
+ * précis, qui doublerait encore la combinatoire) : le Pokémon vivant avec
+ * le plus de %HP restant parmi ceux déjà `hasBeenSentOut` pour ce match —
+ * cohérent avec le reste du projet qui ne raisonne que sur l'information
+ * déjà révélée (cf. actionGenerator.ts::generateSwitchActions).
+ */
+function fillEmptyActiveSlots(battle: BattleState, expectedSlots: ExpectedSlots): BattleState {
+  let next = battle;
+  for (const side of ['p1', 'p2'] as const) {
+    for (const slot of expectedSlots[side]) {
+      if (next.activeByPosition[slot]) continue;
+      const activeKeys = new Set(Object.values(next.activeByPosition));
+      const candidates = Object.entries(next.pokemonByKey).filter(
+        ([key, p]) => p.side === side && p.hasBeenSentOut && !p.fainted && !activeKeys.has(key),
+      );
+      if (candidates.length === 0) continue; // plus personne à envoyer pour ce slot (le check isTerminal plus haut couvrira le cas "plus aucun vivant")
+      candidates.sort((a, b) => healthFraction(b[1]) - healthFraction(a[1]));
+      const [incomingKey] = candidates[0];
+      next = { ...next, activeByPosition: { ...next.activeByPosition, [slot]: incomingKey } };
+    }
+  }
+  return next;
 }
 
 function isTerminal(battle: BattleState): boolean {
@@ -225,7 +300,8 @@ function jointCandidatesForSide(
  * le tour contre CHAQUE réponse adverse plausible (`oppCombos`), et
  * retient la PIRE (noeud MIN adversarial) — moyennée sur les branches de
  * hasard (accuracy/crit) de chacune, puis prolongée récursivement sur
- * `depthRemaining` tours suivants.
+ * `depthRemaining` tours suivants (ou jusqu'à un état terminal réel/le
+ * budget de noeuds, selon ce qui arrive en premier).
  */
 function worstCaseForOwnActions(
   battle: BattleState,
@@ -235,9 +311,11 @@ function worstCaseForOwnActions(
   depthRemaining: number,
   budget: SearchBudget,
   options: SearchOptions,
-): { value: number; pv: string[] } {
+  expectedSlots: ExpectedSlots,
+): { value: number; pv: string[]; reachedTerminal: boolean } {
   let worst = Infinity;
   let worstPv: string[] = [];
+  let worstReachedTerminal = true;
 
   for (const oppActions of oppCombos) {
     if (budget.nodesUsed >= budget.limit) {
@@ -253,18 +331,22 @@ function worstCaseForOwnActions(
     let branchValueSum = 0;
     let branchWeight = 0;
     let representativePv: string[] = [];
+    let anyBranchReachedTerminal = true;
     for (const branch of branches) {
-      const { value: futureValue, pv: futurePv } = searchValue(
-        branch.battle,
+      const filledBattle = fillEmptyActiveSlots(branch.battle, expectedSlots);
+      const { value: futureValue, pv: futurePv, reachedTerminal } = searchValue(
+        filledBattle,
         focalSide,
         depthRemaining - 1,
         -Infinity,
         worst, // beta = la pire valeur acceptée jusqu'ici pour cette action ; inutile de chercher plus profond si on la dépasse déjà en pire
         budget,
         options,
+        expectedSlots,
       );
       branchValueSum += futureValue * branch.probability;
       branchWeight += branch.probability;
+      anyBranchReachedTerminal = anyBranchReachedTerminal && reachedTerminal;
       if (branch.probability >= 0.5 || representativePv.length === 0) {
         representativePv = futurePv;
       }
@@ -274,20 +356,28 @@ function worstCaseForOwnActions(
     if (turnValue < worst) {
       worst = turnValue;
       worstPv = [`(adv) ${oppActions.map(describeActionCompact).join(' + ') || 'pass'}`, ...representativePv];
+      worstReachedTerminal = anyBranchReachedTerminal;
     }
   }
 
   if (worst === Infinity) {
     worst = winForSide(battle, focalSide);
+    worstReachedTerminal = false; // aucune réponse adverse simulée (cas dégénéré) : c'est un repli, pas une vraie fin de partie
   }
-  return { value: worst, pv: worstPv };
+  return { value: worst, pv: worstPv, reachedTerminal: worstReachedTerminal };
 }
 
 /**
  * Coeur récursif : valeur (pour `focalSide`, 0-100) d'un BattleState après
- * `depthRemaining` tours adversariaux supplémentaires. Alpha-beta : alpha
- * = meilleure valeur déjà garantie pour focalSide, beta = pire valeur que
- * l'adversaire laissera passer avant de couper.
+ * `depthRemaining` tours adversariaux supplémentaires — ou jusqu'à ce que
+ * le combat soit RÉELLEMENT terminé (`isTerminal`) si ça arrive avant.
+ * Alpha-beta : alpha = meilleure valeur déjà garantie pour focalSide, beta
+ * = pire valeur que l'adversaire laissera passer avant de couper.
+ *
+ * `reachedTerminal` dans la valeur de retour indique si CETTE valeur est
+ * une victoire/défaite réellement simulée jusqu'au bout (isTerminal vrai)
+ * ou si la recherche a dû s'arrêter en cours de route (profondeur ou
+ * budget épuisés) et se replier sur l'heuristique statique d'evaluator.ts.
  */
 function searchValue(
   battle: BattleState,
@@ -297,13 +387,17 @@ function searchValue(
   beta: number,
   budget: SearchBudget,
   options: SearchOptions,
-): { value: number; pv: string[] } {
-  if (isTerminal(battle) || depthRemaining <= 0 || budget.aborted) {
-    return { value: winForSide(battle, focalSide), pv: [] };
+  expectedSlots: ExpectedSlots,
+): { value: number; pv: string[]; reachedTerminal: boolean } {
+  if (isTerminal(battle)) {
+    return { value: winForSide(battle, focalSide), pv: [], reachedTerminal: true };
+  }
+  if (depthRemaining <= 0 || budget.aborted) {
+    return { value: winForSide(battle, focalSide), pv: [], reachedTerminal: false };
   }
   if (budget.nodesUsed >= budget.limit) {
     budget.aborted = true;
-    return { value: winForSide(battle, focalSide), pv: [] };
+    return { value: winForSide(battle, focalSide), pv: [], reachedTerminal: false };
   }
 
   const opposingSide = focalSide === 'p1' ? 'p2' : 'p1';
@@ -312,10 +406,11 @@ function searchValue(
 
   let bestValue = -Infinity;
   let bestPv: string[] = [];
+  let bestReachedTerminal = false;
   let localAlpha = alpha;
 
   for (const ownActions of ownCombos) {
-    const { value, pv } = worstCaseForOwnActions(
+    const { value, pv, reachedTerminal } = worstCaseForOwnActions(
       battle,
       focalSide,
       ownActions,
@@ -323,19 +418,21 @@ function searchValue(
       depthRemaining,
       budget,
       options,
+      expectedSlots,
     );
     if (value > bestValue) {
       bestValue = value;
       bestPv = [ownActions.map(describeActionCompact).join(' + ') || 'pass', ...pv];
+      bestReachedTerminal = reachedTerminal;
     }
     localAlpha = Math.max(localAlpha, bestValue);
     if (localAlpha >= beta || budget.aborted) break; // élagage alpha
   }
 
   if (bestValue === -Infinity) {
-    return { value: winForSide(battle, focalSide), pv: [] };
+    return { value: winForSide(battle, focalSide), pv: [], reachedTerminal: false };
   }
-  return { value: bestValue, pv: bestPv };
+  return { value: bestValue, pv: bestPv, reachedTerminal: bestReachedTerminal };
 }
 
 /**
@@ -356,6 +453,7 @@ export function searchBestActions(
   const side = position.startsWith('p1') ? 'p1' : 'p2';
   const opposingSide = side === 'p1' ? 'p2' : 'p1';
   const budget: SearchBudget = { nodesUsed: 0, limit: options.nodeBudget, aborted: false };
+  const expectedSlots = computeExpectedSlots(battle);
 
   const shallowRanked = analyzeActionsForPosition(battle, position, fixedAllyAction);
   const candidates = shallowRanked.slice(0, options.candidateBreadth).map((s) => s.action);
@@ -370,7 +468,7 @@ export function searchBestActions(
 
   const results: DeepActionScore[] = candidates.map((candidateAction) => {
     const ownActions = fixedAllyAction ? [candidateAction, fixedAllyAction] : [candidateAction];
-    const { value, pv } = worstCaseForOwnActions(
+    const { value, pv, reachedTerminal } = worstCaseForOwnActions(
       battle,
       side,
       ownActions,
@@ -378,6 +476,7 @@ export function searchBestActions(
       options.maxDepth,
       budget,
       options,
+      expectedSlots,
     );
     return {
       action: candidateAction,
@@ -386,6 +485,7 @@ export function searchBestActions(
       depthReached: options.maxDepth,
       nodesSearched: budget.nodesUsed,
       aborted: budget.aborted,
+      reachedTerminal,
     };
   });
 
