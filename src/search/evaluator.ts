@@ -98,17 +98,19 @@ function sideScore(summary: SideSummary, isOutnumberedAlone: boolean): number {
  * donner une fausse impression de certitude absolue tant que le match n'est
  * pas réellement terminé).
  *
- * LIMITE IMPORTANTE À GARDER EN TÊTE : cette fonction évalue une POSITION
- * ISOLÉE (nombre de vivants + %HP + boosts/statut), sans aucune recherche
- * en profondeur. C'est turnAnalyzer.ts qui simule un tour avec ses réponses
- * adverses plausibles puis appelle cette heuristique sur le résultat — la
- * recherche s'arrête donc à horizon 1 tour. Une action comme Calm Mind, qui
- * ne paie vraiment qu'après plusieurs tours de boost accumulé, n'aura donc
- * jamais un score reflétant sa VRAIE valeur à long terme : l'évaluation ne
- * voit que l'état immédiatement après ce tour, jamais le sweep potentiel 2
- * ou 3 tours plus tard. Une vraie recherche multi-tours (minimax/expectimax
- * sur plusieurs plis) réglerait ça, mais représente un chantier bien plus
- * lourd que cette heuristique — non fait ici, documenté en attendant.
+ * RÔLE DANS LE PIPELINE : cette fonction évalue une POSITION ISOLÉE (nombre
+ * de vivants + %HP + boosts/statut), SANS AUCUNE RECHERCHE elle-même — c'est
+ * une heuristique statique de feuille (« leaf eval »), comme la fonction
+ * d'évaluation d'un moteur d'échecs. Ce n'est PAS elle qui fait la recherche
+ * en profondeur : c'est le rôle de search/minimax.ts, qui l'appelle au bout
+ * de sa recherche adversariale multi-tours (alpha-beta, plusieurs plis) pour
+ * juger les positions atteintes. Avant l'ajout de minimax.ts, turnAnalyzer.ts
+ * appelait cette heuristique juste après UN SEUL tour simulé (d'où l'ancienne
+ * limite « horizon 1 tour, Calm Mind jamais reconnu ») — ce n'est plus le cas
+ * pour l'analyse par défaut de l'UI (recherche à profondeur 2+ via minimax.ts),
+ * mais reste vrai de cette fonction PRISE SEULE, et reste la limite réelle
+ * dès que la profondeur de recherche configurée (nodeBudget/maxDepth) est
+ * épuisée avant la fin du combat.
  */
 export function estimateWinProbability(battle: BattleState): number {
   const p1Summary = summarizeSide(battle, 'p1');
