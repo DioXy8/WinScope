@@ -1383,8 +1383,12 @@ function TurnAnalysisPanel({
         adverses plausibles. Calcul à la demande (peut prendre quelques instants).
       </p>
       <p className="turn-analysis-note turn-analysis-note-warning">
-        ⚠ Estimation à horizon 1 tour seulement : l'effet d'un boost (Calm Mind, Swords Dance...) ou
-        d'un pari à long terme n'est pas pleinement reflété, seul l'état juste après ce tour compte.
+        ⚠ La recherche essaie d'aller jusqu'à la VRAIE fin du combat (calcul
+        borné par un budget de calcul, pas une profondeur fixe), mais tôt dans
+        le match elle n'a souvent pas les moyens d'aller aussi loin : elle se
+        replie alors sur une estimation. Voir « Profondeur / nœuds » sous
+        chaque classement — « ligne menée jusqu'au bout » signifie que le %
+        affiché vient d'un résultat réellement simulé, pas d'une estimation.
       </p>
       <div className="turn-analysis-columns">
         <div className="turn-analysis-column">
@@ -1486,6 +1490,14 @@ function PositionAnalysisCard({
               <span className="action-ranking-percent">{score.winExpectancy}%</span>
             </div>
           ))}
+          {best && (
+            <p className="action-ranking-pv">
+              {best.nodesSearched} nœuds ·{' '}
+              {best.reachedTerminal ? 'ligne menée jusqu\'au bout' : 'estimation (pas encore résolu)'}
+              {best.aborted ? ' (budget atteint, résultat partiel)' : ''}
+              {best.principalVariation.length > 0 && <> · Ligne : {best.principalVariation.join(' → ')}</>}
+            </p>
+          )}
           {state.scores.length > 3 && (
             <button className="action-ranking-toggle" onClick={() => setShowAll((v) => !v)}>
               {showAll ? 'Voir moins' : `Voir les ${state.scores.length - 3} autres options`}
