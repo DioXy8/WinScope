@@ -20,6 +20,21 @@
 
 import type { BattleState, PokemonState } from '../engine/state';
 
+/**
+ * VGC Reg M-B : 6 Pokémon annoncés en Team Preview, mais seulement 4
+ * réellement amenés en combat par côté (même constante que
+ * App.tsx::getKnownTargets — MAX_TEAM_SIZE). Une fois que 4 Pokémon
+ * RÉELLEMENT envoyés (hasBeenSentOut) ont été vus pour un côté, les
+ * entrées jamais envoyées restantes sont des fantômes de Team Preview
+ * garantis ne jamais apparaître.
+ */
+export const REG_MB_MAX_TEAM_SIZE = 4;
+
+/** Sur les Pokémon RÉELLEMENT envoyés en combat pour ce côté, vus jusqu'ici (fainted ou non). Exporté pour partage avec minimax.ts (isTerminal doit appliquer la même logique de fantômes de Team Preview). */
+export function sentOutCountForSide(battle: BattleState, side: 'p1' | 'p2'): number {
+  return Object.values(battle.pokemonByKey).filter((p) => p.side === side && p.hasBeenSentOut).length;
+}
+
 /** Score brut d'un seul Pokémon VIVANT : HP% (ajusté par statut) + bonus de boost. Toujours 0 si KO. */
 function pokemonHealthScore(p: PokemonState): number {
   if (p.fainted) return 0;
@@ -46,22 +61,57 @@ function pokemonHealthScore(p: PokemonState): number {
 }
 
 interface SideSummary {
-  /** Nombre de Pokémon connus de ce camp qui ne sont pas K.O. */
+  /** Nombre de Pokémon connus de ce camp qui ne sont pas K.O. (fantômes de Team Preview exclus, réserves non confirmées pondérées). */
   aliveCount: number;
   /** Somme des scores de santé des Pokémon vivants (entre 0 et aliveCount). */
   healthSum: number;
+  /** Nombre de Pokémon RÉELLEMENT CONFIRMÉS (déjà envoyés au moins une fois) encore en vie — exclut les réserves non confirmées, même pondérées. Sert à détecter "ce camp n'a plus AUCUN combattant connu sur le terrain", un vrai désavantage tactique (doit envoyer un inconnu à l'aveugle) que le simple aliveCount pondéré ne capture pas. */
+  confirmedFieldedCount: number;
 }
 
 function summarizeSide(battle: BattleState, side: 'p1' | 'p2'): SideSummary {
   const pokemons = Object.values(battle.pokemonByKey).filter((p) => p.side === side);
+  const sentOutCount = sentOutCountForSide(battle, side);
+  const unconfirmed = pokemons.filter((p) => !p.hasBeenSentOut && !p.fainted);
+  // "Roster complet" : soit les 4 du bring-4 sont déjà tous confirmés (peu
+  // importe combien de fantômes de Team Preview restent), soit il ne reste
+  // simplement plus aucune entrée "jamais envoyée" à départager (scénario
+  // sans données de Team Preview du tout, ou tout le monde déjà vu).
+  const rosterComplete = sentOutCount >= REG_MB_MAX_TEAM_SIZE || unconfirmed.length === 0;
+
+  // Combien des membres RÉELLEMENT amenés en combat restent inconnus (Reg
+  // M-B : 4 au total). Répartie sur toutes les entrées "jamais envoyées et
+  // pas fainted" (dont certaines sont en réalité des fantômes qui ne
+  // sortiront jamais) — on ne sait pas LESQUELLES sont réelles, donc un
+  // poids proportionnel plutôt que tout-ou-rien. Ex: 2 déjà envoyés, 4
+  // jamais-envoyés dans pokemonByKey (Team Preview) → 2 des 4 sont réels →
+  // poids 0.5 chacun, soit 2.0 au total (pas 4.0, ni 0).
+  const unconfirmedWeight =
+    rosterComplete || unconfirmed.length === 0
+      ? 0
+      : Math.min(1, Math.max(0, REG_MB_MAX_TEAM_SIZE - sentOutCount) / unconfirmed.length);
+
   let aliveCount = 0;
   let healthSum = 0;
+  let confirmedFieldedCount = 0;
   for (const p of pokemons) {
     if (p.fainted) continue;
-    aliveCount += 1;
-    healthSum += pokemonHealthScore(p);
+    if (p.hasBeenSentOut) {
+      // Confirmé réel : sur le terrain ou déjà vu ce combat, poids plein.
+      aliveCount += 1;
+      healthSum += pokemonHealthScore(p);
+      confirmedFieldedCount += 1;
+    } else if (!rosterComplete) {
+      // Annoncé en Team Preview, jamais envoyé : peut-être un des membres
+      // restants du bring-4, peut-être un fantôme laissé à la maison — poids
+      // proportionnel (voir ci-dessus). Si l'équipe des 4 est déjà complète
+      // (rosterComplete), cette entrée est un fantôme GARANTI : exclue
+      // entièrement (aliveCount/healthSum inchangés dans ce cas).
+      aliveCount += unconfirmedWeight;
+      healthSum += unconfirmedWeight * pokemonHealthScore(p); // vraies %HP/boosts si connus, sinon la valeur par défaut (100%, pas de boost) déjà gérée par pokemonHealthScore
+    }
   }
-  return { aliveCount, healthSum };
+  return { aliveCount, healthSum, confirmedFieldedCount };
 }
 
 /**
@@ -87,9 +137,27 @@ const ALIVE_COUNT_WEIGHT = 4;
  */
 const OUTNUMBERED_ALONE_PENALTY = 0.65;
 
+/**
+ * Pénalité structurelle appliquée quand un camp n'a PLUS AUCUN combattant
+ * CONFIRMÉ sur le terrain (tous ses membres déjà envoyés sont tombés),
+ * même s'il a en théorie des réserves non confirmées restantes (Reg M-B).
+ * Le simple `aliveCount` pondéré traite "2 réserves inconnues probables"
+ * comme équivalent à "2 Pokémon confirmés en pleine forme" — ce qui ignore
+ * un vrai désavantage tactique : ce camp doit envoyer un Pokémon à
+ * l'aveugle (sans savoir s'il match bien) FACE à un adversaire déjà
+ * installé (positionnement, boosts, terrain en sa faveur). Sans ce
+ * facteur, balayer complètement les 2 actifs adverses sans dommage pouvait
+ * ressortir à un ~50/50 dès que l'adversaire avait des réserves non
+ * confirmées — largement trop pessimiste pour un tour qui vient de gagner
+ * un tempo décisif.
+ */
+const NO_CONFIRMED_FIGHTER_PENALTY = 0.7;
+
 function sideScore(summary: SideSummary, isOutnumberedAlone: boolean): number {
   const base = summary.aliveCount * ALIVE_COUNT_WEIGHT + summary.healthSum;
-  return isOutnumberedAlone ? base * OUTNUMBERED_ALONE_PENALTY : base;
+  const outnumberedAdjusted = isOutnumberedAlone ? base * OUTNUMBERED_ALONE_PENALTY : base;
+  const noConfirmedFighter = summary.confirmedFieldedCount === 0 && summary.aliveCount > 0;
+  return noConfirmedFighter ? outnumberedAdjusted * NO_CONFIRMED_FIGHTER_PENALTY : outnumberedAdjusted;
 }
 
 /**
