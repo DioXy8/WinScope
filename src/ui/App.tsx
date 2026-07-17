@@ -11,10 +11,10 @@ import type { DamageCalcResult } from '../damagecalc/damageCalc';
 import { isOffensiveMove, isSpreadMove, getSetConfidence, getKnownMoves, resolveDexName } from '../damagecalc/adapter';
 import { resolveBattleSprites, resolveSpriteCandidates } from './pokeSprites';
 import { resolveMegaForme } from '../engine/megaStones';
-import { searchBestActions, getDeepBestWinExpectancyForSide, FAST_TREND_SEARCH_OPTIONS } from '../search/minimax';
-import type { DeepActionScore } from '../search/minimax';
+import { getDeepBestWinExpectancyForSide, FAST_TREND_SEARCH_OPTIONS } from '../search/minimax';
 import { runMonteCarloChunked } from '../search/monteCarlo';
 import type { MonteCarloResult } from '../search/monteCarlo';
+import { generateActionsForPosition } from '../search/actionGenerator';
 import type { PlayerAction } from '../search/actionTypes';
 import type { PokemonPosition } from '../replay/types';
 import { parsePokePaste } from '../sets/pokepasteParser';
@@ -583,9 +583,9 @@ function BattleExplorer({
         await new Promise((resolve) => requestAnimationFrame(resolve));
         if (cancelled) return;
         // Config volontairement légère (1 tour, peu de candidats) car ce
-        // calcul tourne pour CHAQUE tour du replay : la recherche adversariale
-        // multi-tours complète (searchBestActions/DEFAULT_SEARCH_OPTIONS) est
-        // réservée à l'analyse à la demande (bouton "Analyser" ci-dessous).
+        // calcul tourne pour CHAQUE tour du replay : la simulation Monte Carlo
+        // complète (des milliers de parties par coup) est réservée à
+        // l'analyse à la demande (bouton "Analyser" ci-dessous).
         const best = getDeepBestWinExpectancyForSide(states[i], 'p1', FAST_TREND_SEARCH_OPTIONS);
         const value = best ?? fallbackProbabilities[i];
         setComputedProbabilities((prev) => {
@@ -1337,20 +1337,29 @@ function MoveDamageRow({
   );
 }
 
-type AnalysisState =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'error'; message: string }
-  | { status: 'done'; scores: DeepActionScore[] };
-
-/** Nombre de parties jouées par la simulation Monte Carlo à la demande (bouton 🎲) — quelques secondes à ce volume. */
+/** Nombre de parties jouées par candidat lors de l'analyse (bouton "Analyser") — quelques secondes par coup à ce volume. */
 const MONTE_CARLO_GAMES = 3000;
 
-type MonteCarloState =
+interface MonteCarloActionResult {
+  action: PlayerAction;
+  result: MonteCarloResult;
+}
+
+type AnalysisState =
   | { status: 'idle' }
-  | { status: 'running'; actionIndex: number; gamesPlayed: number; totalGames: number; winRateSoFar: number }
-  | { status: 'done'; actionIndex: number; result: MonteCarloResult }
-  | { status: 'error'; actionIndex: number; message: string };
+  | {
+      status: 'running';
+      /** Tous les coups à analyser, dans l'ordre où ils sont traités. */
+      candidates: PlayerAction[];
+      currentIndex: number;
+      gamesPlayed: number;
+      totalGames: number;
+      winRateSoFar: number;
+      /** Résultats déjà obtenus pour les coups précédents (affichés au fur et à mesure). */
+      completed: MonteCarloActionResult[];
+    }
+  | { status: 'error'; message: string }
+  | { status: 'done'; results: MonteCarloActionResult[] };
 
 function describeActionShort(action: PlayerAction, battle: BattleState): string {
   if (action.kind === 'switch') {
@@ -1393,16 +1402,15 @@ function TurnAnalysisPanel({
     <div className="turn-analysis-panel">
       <h3>Analyse du tour — espérance de victoire par action</h3>
       <p className="turn-analysis-note">
-        Pour chaque Pokémon actif, compare ses actions possibles ce tour en simulant les réponses
-        adverses plausibles. Calcul à la demande (peut prendre quelques instants).
+        Pour chaque Pokémon actif, joue {MONTE_CARLO_GAMES} parties complètes jusqu'à la vraie fin du
+        combat pour CHAQUE action possible ce tour, et affiche le % de victoires observées. Calcul à
+        la demande (peut prendre plusieurs secondes, un coup après l'autre).
       </p>
       <p className="turn-analysis-note turn-analysis-note-warning">
-        ⚠ La recherche essaie d'aller jusqu'à la VRAIE fin du combat (calcul
-        borné par un budget de calcul, pas une profondeur fixe), mais tôt dans
-        le match elle n'a souvent pas les moyens d'aller aussi loin : elle se
-        replie alors sur une estimation. Voir « Profondeur / nœuds » sous
-        chaque classement — « ligne menée jusqu'au bout » signifie que le %
-        affiché vient d'un résultat réellement simulé, pas d'une estimation.
+        ⚠ Chaque partie simulée joue une ligne plausible mais pas forcément parfaite des deux côtés
+        (ni un adversaire aléatoire, ni un adversaire optimal) — sur des milliers de parties la
+        moyenne reste informative, mais quelques parties peuvent rester « non conclues » (tour
+        limite de sécurité atteint) : elles sont indiquées et exclues du %.
       </p>
       <div className="turn-analysis-columns">
         <div className="turn-analysis-column">
@@ -1435,46 +1443,68 @@ function PositionAnalysisCard({
 }) {
   const [state, setState] = useState<AnalysisState>({ status: 'idle' });
   const [showAll, setShowAll] = useState(false);
-  const [mcState, setMcState] = useState<MonteCarloState>({ status: 'idle' });
 
   const pokemonKey = battle.activeByPosition[position];
   const pokemon = pokemonKey ? battle.pokemonByKey[pokemonKey] : null;
 
-  function handleAnalyze() {
+  async function handleAnalyze() {
     if (!pokemon) return;
-    setState({ status: 'loading' });
     setShowAll(false);
-    setMcState({ status: 'idle' });
-    // Calcul synchrone mais coûteux (recherche adversariale multi-tours,
-    // potentiellement plusieurs centaines de ms en doubles) : on le différe
-    // d'une frame pour laisser l'UI afficher le spinner avant de bloquer.
-    requestAnimationFrame(() => {
+
+    let candidates: PlayerAction[];
+    try {
+      candidates = generateActionsForPosition(battle, position);
+    } catch (err) {
+      setState({ status: 'error', message: (err as Error).message });
+      return;
+    }
+
+    if (candidates.length === 0) {
+      setState({ status: 'done', results: [] });
+      return;
+    }
+
+    setState({
+      status: 'running',
+      candidates,
+      currentIndex: 0,
+      gamesPlayed: 0,
+      totalGames: MONTE_CARLO_GAMES,
+      winRateSoFar: 50,
+      completed: [],
+    });
+
+    const completed: MonteCarloActionResult[] = [];
+    for (let idx = 0; idx < candidates.length; idx++) {
+      const action = candidates[idx];
       try {
-        const scores = searchBestActions(battle, position, null);
-        setState({ status: 'done', scores });
+        const result = await runMonteCarloChunked(
+          battle,
+          position,
+          action,
+          null,
+          { numGames: MONTE_CARLO_GAMES },
+          (gamesPlayed, totalGames, winRateSoFar) => {
+            setState({
+              status: 'running',
+              candidates,
+              currentIndex: idx,
+              gamesPlayed,
+              totalGames,
+              winRateSoFar,
+              completed: [...completed],
+            });
+          },
+        );
+        completed.push({ action, result });
       } catch (err) {
         setState({ status: 'error', message: (err as Error).message });
+        return;
       }
-    });
-  }
-
-  async function handleMonteCarlo(actionIndex: number, action: DeepActionScore['action']) {
-    setMcState({ status: 'running', actionIndex, gamesPlayed: 0, totalGames: MONTE_CARLO_GAMES, winRateSoFar: 50 });
-    try {
-      const result = await runMonteCarloChunked(
-        battle,
-        position,
-        action,
-        null,
-        { numGames: MONTE_CARLO_GAMES },
-        (gamesPlayed, totalGames, winRateSoFar) => {
-          setMcState({ status: 'running', actionIndex, gamesPlayed, totalGames, winRateSoFar });
-        },
-      );
-      setMcState({ status: 'done', actionIndex, result });
-    } catch (err) {
-      setMcState({ status: 'error', actionIndex, message: (err as Error).message });
     }
+
+    const sorted = [...completed].sort((a, b) => b.result.winRate - a.result.winRate);
+    setState({ status: 'done', results: sorted });
   }
 
   if (!pokemon || pokemon.fainted) {
@@ -1482,7 +1512,8 @@ function PositionAnalysisCard({
   }
 
   const label = pokemon.nickname || pokemon.species;
-  const best = state.status === 'done' ? state.scores[0] : null;
+  const best = state.status === 'done' ? state.results[0] : null;
+  const isRunning = state.status === 'running';
 
   return (
     <div className="position-analysis-card">
@@ -1490,74 +1521,66 @@ function PositionAnalysisCard({
         <span className="position-analysis-label">
           {label} ({position})
         </span>
-        <button
-          className="position-analysis-btn"
-          onClick={handleAnalyze}
-          disabled={state.status === 'loading'}
-        >
-          {state.status === 'loading' ? 'Calcul...' : state.status === 'done' ? 'Recalculer' : 'Analyser'}
+        <button className="position-analysis-btn" onClick={handleAnalyze} disabled={isRunning}>
+          {isRunning ? 'Simulation...' : state.status === 'done' ? 'Recalculer' : 'Analyser'}
         </button>
       </div>
 
       {state.status === 'error' && <p className="position-analysis-error">{state.message}</p>}
 
-      {state.status === 'done' && state.scores.length === 0 && (
+      {isRunning && (
+        <p className="position-analysis-progress">
+          Coup {state.currentIndex + 1}/{state.candidates.length} —{' '}
+          {describeActionShort(state.candidates[state.currentIndex], battle)} : {state.gamesPlayed}/
+          {state.totalGames} parties ({state.winRateSoFar}% pour l'instant)
+        </p>
+      )}
+
+      {state.status === 'done' && state.results.length === 0 && (
         <p className="position-analysis-empty">
           Aucune action calculable : aucun move connu (révélé, PokéPaste, ou set deviné) pour ce
           Pokémon à ce tour.
         </p>
       )}
 
-      {state.status === 'done' && state.scores.length > 0 && (
+      {(isRunning ? state.completed : state.status === 'done' ? state.results : []).length > 0 && (
         <div className="action-ranking">
-          {(showAll ? state.scores : state.scores.slice(0, 3)).map((score, i) => (
+          {(showAll
+            ? isRunning
+              ? state.completed
+              : state.status === 'done'
+                ? state.results
+                : []
+            : (isRunning ? state.completed : state.status === 'done' ? state.results : []).slice(0, 3)
+          ).map((entry, i) => (
             <div key={i}>
               <div
-                className={`action-ranking-row ${best && score === best ? 'action-ranking-best' : ''}`}
+                className={`action-ranking-row ${best && entry === best ? 'action-ranking-best' : ''}`}
               >
-                <span className="action-ranking-name">{describeActionShort(score.action, battle)}</span>
+                <span className="action-ranking-name">{describeActionShort(entry.action, battle)}</span>
                 <div className="action-ranking-bar-track">
                   <div
                     className="action-ranking-bar-fill"
-                    style={{ width: `${Math.max(0, Math.min(100, score.winExpectancy))}%` }}
+                    style={{ width: `${Math.max(0, Math.min(100, entry.result.winRate))}%` }}
                   />
                 </div>
-                <span className="action-ranking-percent">{score.winExpectancy}%</span>
-                <button
-                  className="action-ranking-mc-btn"
-                  onClick={() => handleMonteCarlo(i, score.action)}
-                  disabled={mcState.status === 'running'}
-                  title={`Jouer ${MONTE_CARLO_GAMES} parties complètes jusqu'à la fin à partir de ce coup`}
-                >
-                  🎲
-                </button>
+                <span className="action-ranking-percent">{entry.result.winRate}%</span>
               </div>
-              {mcState.status !== 'idle' && mcState.actionIndex === i && (
-                <p className="action-ranking-mc-result">
-                  {mcState.status === 'running' &&
-                    `Simulation… ${mcState.gamesPlayed}/${mcState.totalGames} parties (${mcState.winRateSoFar}% pour l'instant)`}
-                  {mcState.status === 'done' &&
-                    `${mcState.result.winRate}% sur ${mcState.result.gamesWon + mcState.result.gamesLost + mcState.result.gamesDrawn} parties jouées jusqu'au bout` +
-                      (mcState.result.gamesInconclusive > 0
-                        ? ` (${mcState.result.gamesInconclusive} non conclues, exclues)`
-                        : '') +
-                      ` — ${mcState.result.averageTurnsToConclude} tours en moyenne.`}
-                  {mcState.status === 'error' && `Erreur : ${mcState.message}`}
-                </p>
-              )}
             </div>
           ))}
           {best && (
             <p className="action-ranking-pv">
-              {best.nodesSearched} nœuds ·{' '}
-              {best.reachedTerminal ? 'ligne menée jusqu\'au bout' : 'estimation (pas encore résolu)'}
-              {best.aborted ? ' (budget atteint, résultat partiel)' : ''}
-              {best.principalVariation.length > 0 && <> · Ligne : {best.principalVariation.join(' → ')}</>}
+              {best.result.gamesWon + best.result.gamesLost + best.result.gamesDrawn} parties jouées
+              jusqu'au bout
+              {best.result.gamesInconclusive > 0 ? ` (${best.result.gamesInconclusive} non conclues, exclues)` : ''}
+              {' '}— {best.result.averageTurnsToConclude} tours en moyenne.
             </p>
           )}
-          {state.scores.length > 3 && (
+          {(state.status === 'done' ? state.results.length : 0) > 3 && (
             <button className="action-ranking-toggle" onClick={() => setShowAll((v) => !v)}>
-              {showAll ? 'Voir moins' : `Voir les ${state.scores.length - 3} autres options`}
+              {showAll
+                ? 'Voir moins'
+                : `Voir les ${(state.status === 'done' ? state.results.length : 0) - 3} autres options`}
             </button>
           )}
         </div>
