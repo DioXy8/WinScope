@@ -142,4 +142,38 @@ describe('estimateWinProbability', () => {
     // suffire à sortir du 50/50 de façon notable, pas juste +1 ou +2 points.
     expect(withBoost - withoutBoost).toBeGreaterThanOrEqual(5);
   });
+
+  it('does not let never-sent-out Team Preview ghosts (Reg M-B) drag a decisive sweep back to 50/50', () => {
+    let battle = createInitialBattleState();
+    const mk = (species: string, side: 'p1' | 'p2', hp: number, sentOut: boolean, fainted = false) => ({
+      ...createInitialPokemonState({ species, side, level: 50 }),
+      maxHp: 100,
+      currentHp: hp,
+      hasBeenSentOut: sentOut,
+      fainted,
+    });
+    battle = {
+      ...battle,
+      pokemonByKey: {
+        'p1:Blastoise': mk('Blastoise', 'p1', 100, true),
+        'p1:Incineroar': mk('Incineroar', 'p1', 100, true),
+        // p2 a entièrement perdu ses 2 Pokémon CONFIRMÉS (déjà envoyés) ce tour,
+        // sans que p1 encaisse le moindre dégât. p2 a 4 entrées Team Preview
+        // jamais envoyées : au plus 2 sont réelles (Reg M-B, bring-4), les 2
+        // autres sont des fantômes garantis — impossible de savoir lesquelles.
+        'p2:Farigiraf': mk('Farigiraf', 'p2', 0, true, true),
+        'p2:Incineroar': mk('Incineroar', 'p2', 0, true, true),
+        'p2:Weavile': mk('Weavile', 'p2', 100, false),
+        'p2:Mawile': mk('Mawile', 'p2', 100, false),
+        'p2:Whimsicott': mk('Whimsicott', 'p2', 100, false),
+        'p2:Tyranitar': mk('Tyranitar', 'p2', 100, false),
+      },
+    };
+    const result = estimateWinProbability(battle);
+    // Avant le correctif, ce genre de tour ressortait à ~50/50 (les 4
+    // fantômes de Team Preview comptaient comme pleinement vivants). Balayer
+    // tout le board confirmé adverse sans dommage doit rester nettement
+    // favorable, même si p2 a en théorie ~2 réserves inconnues restantes.
+    expect(result).toBeGreaterThan(55);
+  });
 });
