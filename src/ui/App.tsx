@@ -716,7 +716,10 @@ function VerticalWinBar({
   const roundedP1 = Math.round(p1Percent);
   const p2Percent = 100 - roundedP1;
   return (
-    <div className="vertical-winbar">
+    <div
+      className="vertical-winbar"
+      title="Estimation rapide recalculée à chaque tour (modélisation adverse simplifiée, pour rester fluide sur tout le replay) — combine les 2 Pokémon actifs. Moins fiable que l'analyse détaillée ci-dessous : utilise « Analyser » sur un Pokémon précis pour un calcul plus poussé sur ce tour."
+    >
       <div className="vertical-winbar-label">
         <span className="vertical-winbar-percent vertical-winbar-percent-p1">{roundedP1}%</span>
         <span className="vertical-winbar-name">{p1Name}</span>
