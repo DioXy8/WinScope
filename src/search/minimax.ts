@@ -62,7 +62,7 @@ import type { PlayerAction } from './actionTypes';
 import { analyzeActionsForPosition } from './turnAnalyzer';
 import { generateActionsForPosition } from './actionGenerator';
 import { simulateTurn } from './outcomeSimulator';
-import { estimateWinProbability } from './evaluator';
+import { estimateWinProbability, REG_MB_MAX_TEAM_SIZE } from './evaluator';
 
 export interface SearchOptions {
   /** Nombre de tours complets explorés en profondeur, réponse adverse comprise. 1 = comme avant mais adversarial au lieu d'uniforme. */
@@ -187,10 +187,27 @@ function fillEmptyActiveSlots(battle: BattleState, expectedSlots: ExpectedSlots)
   return next;
 }
 
+/**
+ * Un camp est réellement fini quand : (a) son roster réel est complet (4
+ * Pokémon vus au moins une fois — Reg M-B, cf. evaluator.ts) ET (b) tous
+ * ces membres CONFIRMÉS sont K.O. Les entrées jamais envoyées ne comptent
+ * PAS comme "encore en vie" une fois le roster complet (ce sont des
+ * fantômes garantis de Team Preview) — mais tant que le roster n'est PAS
+ * complet, on ne peut pas exclure qu'un membre restant, jamais vu, soit
+ * réel et vienne encore se battre : dans ce cas, ce camp n'est PAS
+ * considéré comme fini, même si ses actifs actuels tombent tous.
+ */
+function isSideDefeated(battle: BattleState, side: 'p1' | 'p2'): boolean {
+  const sidePokemon = Object.values(battle.pokemonByKey).filter((p) => p.side === side);
+  const sentOutCount = sidePokemon.filter((p) => p.hasBeenSentOut).length;
+  const unconfirmedCount = sidePokemon.filter((p) => !p.hasBeenSentOut && !p.fainted).length;
+  const rosterComplete = sentOutCount >= REG_MB_MAX_TEAM_SIZE || unconfirmedCount === 0;
+  if (!rosterComplete) return false;
+  return sidePokemon.every((p) => !p.hasBeenSentOut || p.fainted);
+}
+
 function isTerminal(battle: BattleState): boolean {
-  const alive = (side: 'p1' | 'p2') =>
-    Object.values(battle.pokemonByKey).some((p) => p.side === side && !p.fainted);
-  return !alive('p1') || !alive('p2');
+  return isSideDefeated(battle, 'p1') || isSideDefeated(battle, 'p2');
 }
 
 function winForSide(battle: BattleState, side: 'p1' | 'p2'): number {
