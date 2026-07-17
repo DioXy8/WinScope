@@ -132,17 +132,17 @@ interface SearchBudget {
   aborted: boolean;
 }
 
-function activePositionsForSide(battle: BattleState, side: 'p1' | 'p2'): PokemonPosition[] {
+export function activePositionsForSide(battle: BattleState, side: 'p1' | 'p2'): PokemonPosition[] {
   return (Object.keys(battle.activeByPosition) as PokemonPosition[]).filter((p) => p.startsWith(side));
 }
 
 /** Les positions actives ('p1a', 'p1b'...) que chaque camp occupe EN CE MOMENT au début de la recherche — le "format" (simple/double) ne change pas en cours de combat, donc ces slots restent ceux à reremplir après un K.O. tout au long de la recherche, même si `battle.activeByPosition` perd temporairement une entrée. */
-interface ExpectedSlots {
+export interface ExpectedSlots {
   p1: PokemonPosition[];
   p2: PokemonPosition[];
 }
 
-function computeExpectedSlots(battle: BattleState): ExpectedSlots {
+export function computeExpectedSlots(battle: BattleState): ExpectedSlots {
   return { p1: activePositionsForSide(battle, 'p1'), p2: activePositionsForSide(battle, 'p2') };
 }
 
@@ -167,9 +167,12 @@ function healthFraction(p: PokemonState): number {
  * précis, qui doublerait encore la combinatoire) : le Pokémon vivant avec
  * le plus de %HP restant parmi ceux déjà `hasBeenSentOut` pour ce match —
  * cohérent avec le reste du projet qui ne raisonne que sur l'information
- * déjà révélée (cf. actionGenerator.ts::generateSwitchActions).
+ * déjà révélée (cf. actionGenerator.ts::generateSwitchActions). Pour un
+ * remplaçant NON confirmé (fantôme potentiel de Team Preview), voir
+ * monteCarlo.ts qui gère ce cas différemment (tirage aléatoire, adapté à
+ * une simulation Monte Carlo, pas à cette recherche exacte).
  */
-function fillEmptyActiveSlots(battle: BattleState, expectedSlots: ExpectedSlots): BattleState {
+export function fillEmptyActiveSlots(battle: BattleState, expectedSlots: ExpectedSlots): BattleState {
   let next = battle;
   for (const side of ['p1', 'p2'] as const) {
     for (const slot of expectedSlots[side]) {
@@ -197,7 +200,7 @@ function fillEmptyActiveSlots(battle: BattleState, expectedSlots: ExpectedSlots)
  * réel et vienne encore se battre : dans ce cas, ce camp n'est PAS
  * considéré comme fini, même si ses actifs actuels tombent tous.
  */
-function isSideDefeated(battle: BattleState, side: 'p1' | 'p2'): boolean {
+export function isSideDefeated(battle: BattleState, side: 'p1' | 'p2'): boolean {
   const sidePokemon = Object.values(battle.pokemonByKey).filter((p) => p.side === side);
   const sentOutCount = sidePokemon.filter((p) => p.hasBeenSentOut).length;
   const unconfirmedCount = sidePokemon.filter((p) => !p.hasBeenSentOut && !p.fainted).length;
@@ -206,7 +209,7 @@ function isSideDefeated(battle: BattleState, side: 'p1' | 'p2'): boolean {
   return sidePokemon.every((p) => !p.hasBeenSentOut || p.fainted);
 }
 
-function isTerminal(battle: BattleState): boolean {
+export function isTerminal(battle: BattleState): boolean {
   return isSideDefeated(battle, 'p1') || isSideDefeated(battle, 'p2');
 }
 
