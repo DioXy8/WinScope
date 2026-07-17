@@ -471,9 +471,7 @@ export function searchBestActions(
   const options: SearchOptions = { ...DEFAULT_SEARCH_OPTIONS, ...overrides };
   const side = position.startsWith('p1') ? 'p1' : 'p2';
   const opposingSide = side === 'p1' ? 'p2' : 'p1';
-  const budget: SearchBudget = { nodesUsed: 0, limit: options.nodeBudget, aborted: false };
   const expectedSlots = computeExpectedSlots(battle);
-
   const shallowRanked = analyzeActionsForPosition(battle, position, fixedAllyAction);
   const candidates = shallowRanked.slice(0, options.candidateBreadth).map((s) => s.action);
   if (candidates.length === 0) return [];
@@ -485,7 +483,20 @@ export function searchBestActions(
     options.rootOpponentRanking,
   );
 
+  // Chaque candidat reçoit son PROPRE budget de noeuds (part égale du total),
+  // et non un budget PARTAGÉ consommé au fil de la boucle. Avec un budget
+  // partagé, le candidat évalué EN PREMIER — dans l'ordre du classement
+  // rapide 1-pli, qui n'est PAS forcément le meilleur au final — épuisait le
+  // budget avant même que les candidats suivants ne soient explorés,
+  // pénalisant injustement ces derniers (repli précoce sur l'heuristique
+  // statique alors qu'ils méritaient une vraie recherche). Résultat observé :
+  // une action clairement gagnante (confirmée à 100% sur 3000 parties Monte
+  // Carlo) classée DERNIÈRE par la recherche exhaustive simplement parce
+  // qu'elle était évaluée en 3ᵉ position et n'avait quasiment plus de budget.
+  const perCandidateBudget = Math.max(1, Math.floor(options.nodeBudget / candidates.length));
+
   const results: DeepActionScore[] = candidates.map((candidateAction) => {
+    const budget: SearchBudget = { nodesUsed: 0, limit: perCandidateBudget, aborted: false };
     const ownActions = fixedAllyAction ? [candidateAction, fixedAllyAction] : [candidateAction];
     const { value, pv, reachedTerminal } = worstCaseForOwnActions(
       battle,
