@@ -13,6 +13,8 @@ import { resolveBattleSprites, resolveSpriteCandidates } from './pokeSprites';
 import { resolveMegaForme } from '../engine/megaStones';
 import { searchBestActions, getDeepBestWinExpectancyForSide, FAST_TREND_SEARCH_OPTIONS } from '../search/minimax';
 import type { DeepActionScore } from '../search/minimax';
+import { runMonteCarloChunked } from '../search/monteCarlo';
+import type { MonteCarloResult } from '../search/monteCarlo';
 import type { PlayerAction } from '../search/actionTypes';
 import type { PokemonPosition } from '../replay/types';
 import { parsePokePaste } from '../sets/pokepasteParser';
@@ -1338,6 +1340,15 @@ type AnalysisState =
   | { status: 'error'; message: string }
   | { status: 'done'; scores: DeepActionScore[] };
 
+/** Nombre de parties jouées par la simulation Monte Carlo à la demande (bouton 🎲) — quelques secondes à ce volume. */
+const MONTE_CARLO_GAMES = 3000;
+
+type MonteCarloState =
+  | { status: 'idle' }
+  | { status: 'running'; actionIndex: number; gamesPlayed: number; totalGames: number; winRateSoFar: number }
+  | { status: 'done'; actionIndex: number; result: MonteCarloResult }
+  | { status: 'error'; actionIndex: number; message: string };
+
 function describeActionShort(action: PlayerAction, battle: BattleState): string {
   if (action.kind === 'switch') {
     return `Switch (${action.incomingKey.split(':')[1] ?? action.incomingKey})`;
@@ -1421,6 +1432,7 @@ function PositionAnalysisCard({
 }) {
   const [state, setState] = useState<AnalysisState>({ status: 'idle' });
   const [showAll, setShowAll] = useState(false);
+  const [mcState, setMcState] = useState<MonteCarloState>({ status: 'idle' });
 
   const pokemonKey = battle.activeByPosition[position];
   const pokemon = pokemonKey ? battle.pokemonByKey[pokemonKey] : null;
@@ -1429,6 +1441,7 @@ function PositionAnalysisCard({
     if (!pokemon) return;
     setState({ status: 'loading' });
     setShowAll(false);
+    setMcState({ status: 'idle' });
     // Calcul synchrone mais coûteux (recherche adversariale multi-tours,
     // potentiellement plusieurs centaines de ms en doubles) : on le différe
     // d'une frame pour laisser l'UI afficher le spinner avant de bloquer.
@@ -1440,6 +1453,25 @@ function PositionAnalysisCard({
         setState({ status: 'error', message: (err as Error).message });
       }
     });
+  }
+
+  async function handleMonteCarlo(actionIndex: number, action: DeepActionScore['action']) {
+    setMcState({ status: 'running', actionIndex, gamesPlayed: 0, totalGames: MONTE_CARLO_GAMES, winRateSoFar: 50 });
+    try {
+      const result = await runMonteCarloChunked(
+        battle,
+        position,
+        action,
+        null,
+        { numGames: MONTE_CARLO_GAMES },
+        (gamesPlayed, totalGames, winRateSoFar) => {
+          setMcState({ status: 'running', actionIndex, gamesPlayed, totalGames, winRateSoFar });
+        },
+      );
+      setMcState({ status: 'done', actionIndex, result });
+    } catch (err) {
+      setMcState({ status: 'error', actionIndex, message: (err as Error).message });
+    }
   }
 
   if (!pokemon || pokemon.fainted) {
@@ -1476,18 +1508,40 @@ function PositionAnalysisCard({
       {state.status === 'done' && state.scores.length > 0 && (
         <div className="action-ranking">
           {(showAll ? state.scores : state.scores.slice(0, 3)).map((score, i) => (
-            <div
-              key={i}
-              className={`action-ranking-row ${best && score === best ? 'action-ranking-best' : ''}`}
-            >
-              <span className="action-ranking-name">{describeActionShort(score.action, battle)}</span>
-              <div className="action-ranking-bar-track">
-                <div
-                  className="action-ranking-bar-fill"
-                  style={{ width: `${Math.max(0, Math.min(100, score.winExpectancy))}%` }}
-                />
+            <div key={i}>
+              <div
+                className={`action-ranking-row ${best && score === best ? 'action-ranking-best' : ''}`}
+              >
+                <span className="action-ranking-name">{describeActionShort(score.action, battle)}</span>
+                <div className="action-ranking-bar-track">
+                  <div
+                    className="action-ranking-bar-fill"
+                    style={{ width: `${Math.max(0, Math.min(100, score.winExpectancy))}%` }}
+                  />
+                </div>
+                <span className="action-ranking-percent">{score.winExpectancy}%</span>
+                <button
+                  className="action-ranking-mc-btn"
+                  onClick={() => handleMonteCarlo(i, score.action)}
+                  disabled={mcState.status === 'running'}
+                  title={`Jouer ${MONTE_CARLO_GAMES} parties complètes jusqu'à la fin à partir de ce coup`}
+                >
+                  🎲
+                </button>
               </div>
-              <span className="action-ranking-percent">{score.winExpectancy}%</span>
+              {mcState.status !== 'idle' && mcState.actionIndex === i && (
+                <p className="action-ranking-mc-result">
+                  {mcState.status === 'running' &&
+                    `Simulation… ${mcState.gamesPlayed}/${mcState.totalGames} parties (${mcState.winRateSoFar}% pour l'instant)`}
+                  {mcState.status === 'done' &&
+                    `${mcState.result.winRate}% sur ${mcState.result.gamesWon + mcState.result.gamesLost + mcState.result.gamesDrawn} parties jouées jusqu'au bout` +
+                      (mcState.result.gamesInconclusive > 0
+                        ? ` (${mcState.result.gamesInconclusive} non conclues, exclues)`
+                        : '') +
+                      ` — ${mcState.result.averageTurnsToConclude} tours en moyenne.`}
+                  {mcState.status === 'error' && `Erreur : ${mcState.message}`}
+                </p>
+              )}
             </div>
           ))}
           {best && (
