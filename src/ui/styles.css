@@ -1375,10 +1375,32 @@ body {
 
 .action-ranking-row {
   display: grid;
-  grid-template-columns: 1fr 90px 42px;
+  grid-template-columns: 1fr 90px 42px 28px;
   align-items: center;
   gap: 8px;
   font-size: 0.75rem;
+}
+
+.action-ranking-mc-btn {
+  background: transparent;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 2px 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.action-ranking-mc-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.action-ranking-mc-result {
+  font-size: 0.7rem;
+  color: #9aa0ac;
+  margin: 2px 0 4px 0;
+  padding-left: 2px;
 }
 
 .action-ranking-best .action-ranking-name {
