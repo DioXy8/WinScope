@@ -123,9 +123,33 @@ describe('reachedTerminal', () => {
   });
 
   it('is false when the position is too far from any real ending for the given budget', () => {
-    // Board bien vivant des deux côtés : impossible de dérouler jusqu'à un vrai KO
-    // total avec un budget de noeuds minuscule -> repli honnête sur l'heuristique.
-    const battle = setupLethalScenario();
+    // Incineroar à pleine forme (pas un K.O. immédiat) : il faut plusieurs
+    // tours pour conclure, ce qu'un budget de noeuds minuscule ne permet pas
+    // -> repli honnête sur l'heuristique plutôt qu'un faux résultat "terminé".
+    let battle = createInitialBattleState();
+    const garchomp = {
+      ...createInitialPokemonState({ species: 'Garchomp', side: 'p1', level: 50 }),
+      position: 'p1a' as const,
+      revealedMoves: ['Earthquake', 'Protect'],
+      maxHp: 190,
+      currentHp: 190,
+      hasBeenSentOut: true,
+      hpIsPercentage: false,
+    };
+    const incineroar = {
+      ...createInitialPokemonState({ species: 'Incineroar', side: 'p2', level: 50 }),
+      position: 'p2a' as const,
+      revealedMoves: ['Flare Blitz'],
+      maxHp: 190,
+      currentHp: 190,
+      hasBeenSentOut: true,
+      hpIsPercentage: false,
+    };
+    battle = {
+      ...battle,
+      pokemonByKey: { 'p1:Garchomp': garchomp, 'p2:Incineroar': incineroar },
+      activeByPosition: { p1a: 'p1:Garchomp', p2a: 'p2:Incineroar' },
+    };
     const scores = searchBestActions(battle, 'p1a', null, {
       maxDepth: 40,
       candidateBreadth: 2,
@@ -214,5 +238,46 @@ describe('getDeepBestWinExpectancyForSide', () => {
     const emptyBattle = { ...battle, activeByPosition: { p2a: battle.activeByPosition.p2a } };
     const result = getDeepBestWinExpectancyForSide(emptyBattle, 'p1', TINY_OPTIONS);
     expect(result).toBeNull();
+  });
+});
+
+describe('searchBestActions budget fairness', () => {
+  it('gives every candidate a fair, roughly equal share of the node budget (no positional bias from shared-budget starvation)', () => {
+    // Historique : budget.nodesUsed était un compteur PARTAGÉ entre tous les
+    // candidats, consommé dans l'ordre du classement rapide 1-pli. Le
+    // dernier candidat évalué pouvait se retrouver avec un budget quasi nul
+    // et un score artificiellement bas, sans rapport avec son vrai mérite
+    // (observé en vrai jeu : un coup confirmé gagnant à 100% sur 3000
+    // parties Monte Carlo, classé DERNIER par la recherche exhaustive).
+    let battle = createInitialBattleState();
+    const mk = (species: string, side: 'p1' | 'p2', pos: any, hp: number, moves: string[]) => ({
+      ...createInitialPokemonState({ species, side, level: 50 }),
+      position: pos,
+      maxHp: 190,
+      currentHp: hp,
+      hasBeenSentOut: true,
+      revealedMoves: moves,
+    });
+    battle = {
+      ...battle,
+      pokemonByKey: {
+        'p1:Blastoise': mk('Blastoise', 'p1', 'p1a', 150, ['Water Spout', 'Dark Pulse', 'Ice Beam']),
+        'p1:Incineroar': mk('Incineroar', 'p1', 'p1b', 150, ['Flare Blitz', 'Fake Out']),
+        'p2:Farigiraf': mk('Farigiraf', 'p2', 'p2a', 150, ['Psychic', 'Trick Room']),
+        'p2:Venusaur': mk('Venusaur', 'p2', 'p2b', 150, ['Sludge Bomb']),
+      },
+      activeByPosition: { p1a: 'p1:Blastoise', p1b: 'p1:Incineroar', p2a: 'p2:Farigiraf', p2b: 'p2:Venusaur' },
+    };
+    const scores = searchBestActions(battle, 'p1a', null, { maxDepth: 40, candidateBreadth: 3, nodeBudget: 90 });
+    expect(scores.length).toBeGreaterThanOrEqual(2);
+    const nodeCounts = scores.map((s) => s.nodesSearched);
+    const maxNodes = Math.max(...nodeCounts);
+    const minNodes = Math.min(...nodeCounts);
+    // Chaque candidat a reçu le MÊME budget indépendant (nodeBudget / nb de
+    // candidats) : le nombre de noeuds réellement consommés peut varier
+    // selon la complexité de chaque ligne, mais le PLAFOND disponible était
+    // identique pour tous — donc pas d'écart démesuré uniquement dû à
+    // l'ordre d'évaluation.
+    expect(maxNodes).toBeLessThanOrEqual(minNodes * 3 + 5);
   });
 });
