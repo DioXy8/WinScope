@@ -60,9 +60,26 @@ function pokemonHealthScore(p: PokemonState): number {
   // (`undefined`) transforme silencieusement TOUT le calcul en NaN, qui se
   // propage ensuite jusqu'au % affiché sans qu'aucune erreur ne remonte.
   // D'où `?? 0` sur chaque stat : une stat non présente = non boostée.
-  const boostSum =
-    (p.boosts.atk ?? 0) + (p.boosts.spa ?? 0) + (p.boosts.def ?? 0) + (p.boosts.spd ?? 0) + (p.boosts.spe ?? 0);
-  const boostBonus = Math.max(-1.5, Math.min(1.5, boostSum * 0.25));
+  //
+  // PONDÉRATION PAR TYPE DE STAT, PAS UNE SOMME PLATE : un +2 Vitesse ou
+  // +2 Attaque (Spéciale) ne vaut pas la même chose qu'un +2 Défense — le
+  // premier accélère des victoires (joue en premier, frappe plus fort),
+  // le second ne fait que réduire une chance de perdre, déjà en partie
+  // capturé par hpFraction. `offensiveBoost` prend le MEILLEUR des deux
+  // stats offensives plutôt que leur somme (une estimation grossière de
+  // "quelle stat ce Pokémon utilise probablement" sans connaître son vrai
+  // moveset ici) ; `defensiveBoost` est une MOYENNE (poids réduit) plutôt
+  // qu'une somme complète. Ça reste approximatif — toujours aucune idée si
+  // l'adversaire peut exploiter la faiblesse Def/SpD laissée par un Shell
+  // Smash — mais un +2 Vitesse/Attaque pèse enfin nettement plus qu'un +2
+  // Défense/Def.Spé dans ce score, plutôt que quasiment pareil.
+  const offensiveBoost = Math.max(p.boosts.atk ?? 0, p.boosts.spa ?? 0);
+  const defensiveBoost = ((p.boosts.def ?? 0) + (p.boosts.spd ?? 0)) / 2;
+  const speedBoost = p.boosts.spe ?? 0;
+  const boostBonus = Math.max(
+    -1.5,
+    Math.min(1.5, offensiveBoost * 0.3 + defensiveBoost * 0.15 + speedBoost * 0.35),
+  );
 
   return hpFraction * statusFactor + boostBonus;
 }
