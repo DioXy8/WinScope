@@ -54,7 +54,14 @@ function pokemonHealthScore(p: PokemonState): number {
   // ignore si l'adversaire peut ou non exploiter la faiblesse en Def/SpD
   // laissée par Shell Smash), mais pèse enfin un poids comparable à une
   // vraie différence de Pokémon en vie.
-  const boostSum = p.boosts.atk + p.boosts.spa + p.boosts.def + p.boosts.spd + p.boosts.spe;
+  // `p.boosts` peut être un objet PARTIEL (seules les stats effectivement
+  // modifiées présentes, ex: `{atk: -1}` sans def/spa/spd/spe) selon le
+  // chemin de construction de l'état — additionner une clé manquante
+  // (`undefined`) transforme silencieusement TOUT le calcul en NaN, qui se
+  // propage ensuite jusqu'au % affiché sans qu'aucune erreur ne remonte.
+  // D'où `?? 0` sur chaque stat : une stat non présente = non boostée.
+  const boostSum =
+    (p.boosts.atk ?? 0) + (p.boosts.spa ?? 0) + (p.boosts.def ?? 0) + (p.boosts.spd ?? 0) + (p.boosts.spe ?? 0);
   const boostBonus = Math.max(-1.5, Math.min(1.5, boostSum * 0.25));
 
   return hpFraction * statusFactor + boostBonus;
