@@ -40,6 +40,7 @@ import type { BattleState, PokemonState } from '../engine/state';
 import type { PokemonPosition } from '../replay/types';
 import type { PlayerAction } from './actionTypes';
 import { generateActionsForPosition } from './actionGenerator';
+import { calculateDamage } from '../damagecalc/damageCalc';
 import { simulateTurn, type SimulationBranch } from './outcomeSimulator';
 import {
   activePositionsForSide,
@@ -88,6 +89,44 @@ export interface MonteCarloResult {
 }
 
 /** Ordre grossier sans simulation (identique en esprit à minimax.ts::topCandidatesFast) : offensif > statut/soi > switch. */
+/**
+ * Estimation RAPIDE (un calcul de dégâts direct, pas une simulation de
+ * tour complète) du %HP qu'une action offensive infligerait, moyennée sur
+ * ses cibles. Sert UNIQUEMENT à ordonner les candidats dans la politique
+ * bon marché du déroulé — sans ça, une attaque qui ne fait STRICTEMENT
+ * RIEN (immunité de type, mauvaise cible...) et une attaque dévastatrice
+ * étaient traitées comme équivalentes ("offensive" au même titre), ce qui
+ * pouvait faire jouer des coups objectivement mauvais aussi souvent que
+ * des bons dans le déroulé — la politique de simulation, c'est justement
+ * ce qui détermine la qualité du % Monte Carlo au final.
+ */
+function estimateQuickDamagePercent(battle: BattleState, attackerKey: string, action: PlayerAction): number {
+  if (action.kind !== 'move' || action.targetPositions.length === 0) return 0;
+  const attacker = battle.pokemonByKey[attackerKey];
+  if (!attacker) return 0;
+  const attackerSide: 'p1' | 'p2' = attacker.side;
+  let total = 0;
+  let count = 0;
+  for (const targetPos of action.targetPositions) {
+    const defenderKey = battle.activeByPosition[targetPos];
+    const defender = defenderKey ? battle.pokemonByKey[defenderKey] : undefined;
+    if (!defender) continue;
+    try {
+      const result = calculateDamage(attacker, defender, action.moveName, battle, attackerSide);
+      total += (result.minPercent + result.maxPercent) / 2;
+      count += 1;
+    } catch {
+      // Move/espèce hors dex Champions : pas d'estimation possible, ignoré (contribue 0).
+    }
+  }
+  return count > 0 ? total / count : 0;
+}
+
+/**
+ * Priorité grossière SANS calcul de dégâts (switch < statut < offensif) —
+ * utilisée seulement pour départager quand aucune estimation de dégâts
+ * n'est disponible ou pertinente (switches, moves de statut).
+ */
 function actionPriority(a: PlayerAction): number {
   if (a.kind === 'switch') return 0;
   return a.targetPositions.length > 0 ? 2 : 1;
@@ -137,12 +176,26 @@ function pickStochasticAction(
   position: PokemonPosition,
   explorationRate: number,
 ): PlayerAction | null {
+  const attackerKey = battle.activeByPosition[position];
   const candidates = generateActionsForPosition(battle, position);
   if (candidates.length === 0) return null;
   if (Math.random() < explorationRate) {
     return candidates[Math.floor(Math.random() * candidates.length)];
   }
-  const ranked = [...candidates].sort((a, b) => actionPriority(b) - actionPriority(a));
+  const ranked = [...candidates].sort((a, b) => {
+    const tierA = actionPriority(a);
+    const tierB = actionPriority(b);
+    if (tierA !== tierB) return tierB - tierA; // switch < statut < offensif, toujours
+    if (tierA === 2 && attackerKey) {
+      // À égalité de tier "offensif", départage par vrai %HP estimé — pas
+      // l'ordre arbitraire de génération, qui ne distingue pas un coup nul
+      // (immunité de type...) d'un coup dévastateur.
+      return (
+        estimateQuickDamagePercent(battle, attackerKey, b) - estimateQuickDamagePercent(battle, attackerKey, a)
+      );
+    }
+    return 0;
+  });
   return ranked[0];
 }
 
