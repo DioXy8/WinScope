@@ -63,6 +63,7 @@ import { analyzeActionsForPosition } from './turnAnalyzer';
 import { generateActionsForPosition } from './actionGenerator';
 import { simulateTurn } from './outcomeSimulator';
 import { estimateWinProbability, REG_MB_MAX_TEAM_SIZE } from './evaluator';
+import { isOffensiveMove } from '../damagecalc/adapter';
 
 export interface SearchOptions {
   /** Nombre de tours complets explorés en profondeur, réponse adverse comprise. 1 = comme avant mais adversarial au lieu d'uniforme. */
@@ -233,7 +234,20 @@ function topCandidatesAccurate(
   breadth: number,
 ): PlayerAction[] {
   const ranked = analyzeActionsForPosition(battle, position, fixedAlly);
-  return ranked.slice(0, breadth).map((s) => s.action);
+  const top = ranked.slice(0, breadth).map((s) => s.action);
+
+  // Les moves de soutien (Helping Hand, Follow Me, Tailwind...) infligent 0
+  // dégât direct : évalués SEULS (comme le fait analyzeActionsForPosition
+  // ici), ils paraissent toujours mauvais et ratent le classement, alors
+  // que leur vraie valeur ne se voit qu'EN COMBO avec ce que joue le
+  // partenaire. On les force dans la liste retenue (même hors du top-K)
+  // pour que la position suivante, elle, puisse les évaluer en contexte.
+  const alreadyIncluded = new Set(top.map(describeActionCompact));
+  const supportMoves = ranked
+    .map((s) => s.action)
+    .filter((a) => a.kind === 'move' && !isOffensiveMove(a.moveName) && !alreadyIncluded.has(describeActionCompact(a)));
+
+  return [...top, ...supportMoves];
 }
 
 /**
@@ -265,7 +279,7 @@ function topCandidatesFast(battle: BattleState, position: PokemonPosition, bread
  * 'fast'` (tous les noeuds plus profonds) ignore cette dépendance fine
  * pour rester bon marché.
  */
-function jointCandidatesForSide(
+export function jointCandidatesForSide(
   battle: BattleState,
   positions: PokemonPosition[],
   breadth: number,
