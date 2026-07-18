@@ -176,4 +176,31 @@ describe('estimateWinProbability', () => {
     // favorable, même si p2 a en théorie ~2 réserves inconnues restantes.
     expect(result).toBeGreaterThan(55);
   });
+
+  it('never returns NaN even when a boosts object is missing some stat keys', () => {
+    // battle.pokemonByKey[x].boosts est censé toujours avoir les 5 clés
+    // (atk/def/spa/spd/spe) en jeu réel, mais un objet PARTIEL (seules les
+    // stats effectivement modifiées) a déjà été observé sur certains
+    // chemins de construction d'état — sommer une clé absente
+    // (`undefined`) transformait alors TOUT le % en NaN, silencieusement.
+    let battle = createInitialBattleState();
+    const p1 = {
+      ...createInitialPokemonState({ species: 'Blastoise', side: 'p1', level: 50 }),
+      maxHp: 190,
+      currentHp: 190,
+      boosts: { atk: -1 } as any, // objet partiel volontaire pour reproduire le bug
+    };
+    const p2 = {
+      ...createInitialPokemonState({ species: 'Incineroar', side: 'p2', level: 50 }),
+      maxHp: 190,
+      currentHp: 190,
+      boosts: {} as any, // objet totalement vide
+    };
+    battle = { ...battle, pokemonByKey: { 'p1:Blastoise': p1, 'p2:Incineroar': p2 } };
+
+    const result = estimateWinProbability(battle);
+    expect(Number.isNaN(result)).toBe(false);
+    expect(result).toBeGreaterThanOrEqual(1);
+    expect(result).toBeLessThanOrEqual(99);
+  });
 });
