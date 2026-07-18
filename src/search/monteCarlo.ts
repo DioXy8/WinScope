@@ -40,6 +40,7 @@ import type { BattleState, PokemonState } from '../engine/state';
 import type { PokemonPosition } from '../replay/types';
 import type { PlayerAction } from './actionTypes';
 import { generateActionsForPosition } from './actionGenerator';
+import { analyzeActionsForPosition } from './turnAnalyzer';
 import { simulateTurn, type SimulationBranch } from './outcomeSimulator';
 import {
   activePositionsForSide,
@@ -90,6 +91,51 @@ export interface MonteCarloResult {
 function actionPriority(a: PlayerAction): number {
   if (a.kind === 'switch') return 0;
   return a.targetPositions.length > 0 ? 2 : 1;
+}
+
+/**
+ * Choisit la réponse adverse à partir d'un classement DÉJÀ CALCULÉ (voir
+ * `computeRootOpponentRankings`) — utilisé uniquement pour LE TOUT PREMIER
+ * TOUR (immédiatement après l'action étudiée). Contrairement à
+ * `pickStochasticAction` (bon marché, priorité grossière, utilisée pour
+ * tout le reste du déroulé), ce classement vient du 1-pli PRÉCIS de
+ * turnAnalyzer (qui simule réellement les dégâts).
+ *
+ * Pourquoi seulement ce tour-là : c'est le seul moment où un mauvais choix
+ * de politique change fondamentalement la conclusion — un coup "tout ou
+ * rien" comme Shell Smash (qui baisse Def/SpD et n'attaque pas) est
+ * justement dangereux SI l'adversaire riposte fort ce tour précis. Une
+ * politique bon marché qui ne reconnaît pas cette fenêtre de punition
+ * sous-estime systématiquement le risque de ce genre de coup.
+ *
+ * Pourquoi un classement PRÉ-CALCULÉ plutôt qu'un calcul à chaque partie :
+ * la position de départ (juste après l'action étudiée) est IDENTIQUE pour
+ * les milliers de parties simulées — seul le TIRAGE dans ce classement
+ * varie. Recalculer le classement précis (qui simule lui-même plusieurs
+ * réponses) à chaque partie serait des milliers de fois le même travail
+ * pour rien (mesuré : rendait 3000 parties totalement impraticables).
+ */
+function pickFromRanking(ranked: PlayerAction[], explorationRate: number): PlayerAction | null {
+  if (ranked.length === 0) return null;
+  if (Math.random() < explorationRate) {
+    return ranked[Math.floor(Math.random() * ranked.length)];
+  }
+  return ranked[0];
+}
+
+/** Calcule, UNE SEULE FOIS avant de lancer les parties, le classement précis (1-pli, simulé) des réponses adverses plausibles pour chaque position adverse — réutilisé par toutes les parties pour le tout premier tour. */
+function computeRootOpponentRankings(
+  battle: BattleState,
+  opposingPositions: PokemonPosition[],
+): Map<PokemonPosition, PlayerAction[]> {
+  const map = new Map<PokemonPosition, PlayerAction[]>();
+  for (const pos of opposingPositions) {
+    map.set(
+      pos,
+      analyzeActionsForPosition(battle, pos, null).map((s) => s.action),
+    );
+  }
+  return map;
 }
 
 /**
@@ -171,6 +217,7 @@ function playOneGame(
   fixedAllyAction: PlayerAction | null,
   expectedSlots: ExpectedSlots,
   config: MonteCarloConfig,
+  rootOpponentRankings: Map<PokemonPosition, PlayerAction[]>,
 ): { outcome: GameOutcome; turns: number } {
   let battle = rootBattle;
   const opposingSide = focalSide === 'p1' ? 'p2' : 'p1';
@@ -199,7 +246,9 @@ function playOneGame(
 
     const oppActions: PlayerAction[] = [];
     for (const pos of oppPositions) {
-      const action = pickStochasticAction(battle, pos, config.explorationRate);
+      const action = isRootTurn
+        ? pickFromRanking(rootOpponentRankings.get(pos) ?? [], config.explorationRate)
+        : pickStochasticAction(battle, pos, config.explorationRate);
       if (action) oppActions.push(action);
     }
 
@@ -241,7 +290,9 @@ export function runMonteCarloGames(
 ): MonteCarloResult {
   const config: MonteCarloConfig = { ...DEFAULT_MONTE_CARLO_CONFIG, ...overrides };
   const focalSide = position.startsWith('p1') ? 'p1' : 'p2';
+  const opposingSide = focalSide === 'p1' ? 'p2' : 'p1';
   const expectedSlots = computeExpectedSlots(battle);
+  const rootOpponentRankings = computeRootOpponentRankings(battle, activePositionsForSide(battle, opposingSide));
 
   let gamesWon = 0;
   let gamesLost = 0;
@@ -259,6 +310,7 @@ export function runMonteCarloGames(
       fixedAllyAction,
       expectedSlots,
       config,
+      rootOpponentRankings,
     );
     if (outcome === 'win') gamesWon += 1;
     else if (outcome === 'loss') gamesLost += 1;
@@ -302,7 +354,9 @@ export async function runMonteCarloChunked(
 ): Promise<MonteCarloResult> {
   const config: MonteCarloConfig = { ...DEFAULT_MONTE_CARLO_CONFIG, ...overrides };
   const focalSide = position.startsWith('p1') ? 'p1' : 'p2';
+  const opposingSide = focalSide === 'p1' ? 'p2' : 'p1';
   const expectedSlots = computeExpectedSlots(battle);
+  const rootOpponentRankings = computeRootOpponentRankings(battle, activePositionsForSide(battle, opposingSide));
 
   let gamesWon = 0;
   let gamesLost = 0;
@@ -323,6 +377,7 @@ export async function runMonteCarloChunked(
         fixedAllyAction,
         expectedSlots,
         config,
+        rootOpponentRankings,
       );
       if (outcome === 'win') gamesWon += 1;
       else if (outcome === 'loss') gamesLost += 1;
