@@ -203,4 +203,41 @@ describe('estimateWinProbability', () => {
     expect(result).toBeGreaterThanOrEqual(1);
     expect(result).toBeLessThanOrEqual(99);
   });
+
+  it('weighs a Speed+Attack boost (e.g. Shell Smash) more than an equal-magnitude pure Defense boost', () => {
+    // Un +2 Vitesse / +2 Attaque (Spéciale) doit peser nettement plus qu'un
+    // +2 Défense / +2 Def.Spé de même ampleur — le premier accélère des
+    // victoires (joue en premier, frappe plus fort), le second ne fait que
+    // réduire une chance de perdre. Avant le correctif, une simple somme
+    // plate des 5 stats les traitait de façon quasi identique.
+    let battle = createInitialBattleState();
+    const offensiveBoosted = {
+      ...createInitialPokemonState({ species: 'Blastoise', side: 'p1', level: 50 }),
+      maxHp: 190,
+      currentHp: 190,
+      boosts: { atk: 0, def: -1, spa: 2, spd: -1, spe: 2 },
+    };
+    const defensiveBoosted = {
+      ...createInitialPokemonState({ species: 'Blastoise', side: 'p1', level: 50 }),
+      maxHp: 190,
+      currentHp: 190,
+      boosts: { atk: 0, def: 2, spa: -1, spd: 2, spe: -1 },
+    };
+    const opponent = {
+      ...createInitialPokemonState({ species: 'Incineroar', side: 'p2', level: 50 }),
+      maxHp: 190,
+      currentHp: 190,
+    };
+
+    const withOffensiveBoost = estimateWinProbability({
+      ...battle,
+      pokemonByKey: { 'p1:Blastoise': offensiveBoosted, 'p2:Incineroar': opponent },
+    });
+    const withDefensiveBoost = estimateWinProbability({
+      ...battle,
+      pokemonByKey: { 'p1:Blastoise': defensiveBoosted, 'p2:Incineroar': { ...opponent } },
+    });
+
+    expect(withOffensiveBoost).toBeGreaterThan(withDefensiveBoost);
+  });
 });
