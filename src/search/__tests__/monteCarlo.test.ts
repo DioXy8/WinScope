@@ -98,4 +98,59 @@ describe('runMonteCarloGames', () => {
     // façons, le nombre moyen de tours ne devrait pas être un entier figé à 1.
     expect(Number.isFinite(result.averageTurnsToConclude)).toBe(true);
   });
+
+  it('makes the opponent actually punish a risky setup move on the very next turn, and stays fast (ranking computed once, not per game)', () => {
+    let battle = createInitialBattleState();
+    const mk = (species: string, side: 'p1' | 'p2', pos: any, hp: number, moves: string[]) => ({
+      ...createInitialPokemonState({ species, side, level: 50 }),
+      position: pos,
+      maxHp: 190,
+      currentHp: hp,
+      hasBeenSentOut: true,
+      revealedMoves: moves,
+    });
+    battle = {
+      ...battle,
+      pokemonByKey: {
+        'p1:Blastoise': mk('Blastoise', 'p1', 'p1a', 190, ['Shell Smash', 'Water Spout', 'Protect']),
+        'p1:Incineroar': mk('Incineroar', 'p1', 'p1b', 190, ['Flare Blitz', 'Fake Out']),
+        'p2:Farigiraf': mk('Farigiraf', 'p2', 'p2a', 190, ['Psychic', 'Trick Room']),
+        'p2:Weavile': mk('Weavile', 'p2', 'p2b', 190, ['Knock Off', 'Ice Punch']),
+      },
+      activeByPosition: { p1a: 'p1:Blastoise', p1b: 'p1:Incineroar', p2a: 'p2:Farigiraf', p2b: 'p2:Weavile' },
+    };
+    const shellSmash: PlayerAction = {
+      kind: 'move',
+      userKey: 'p1:Blastoise',
+      userPosition: 'p1a',
+      moveName: 'Shell Smash',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+      moveSource: 'revealed',
+    };
+    const protectAction: PlayerAction = {
+      kind: 'move',
+      userKey: 'p1:Blastoise',
+      userPosition: 'p1a',
+      moveName: 'Protect',
+      targetPositions: [],
+      willMegaEvolve: false,
+      willTerastallize: false,
+      moveSource: 'revealed',
+    };
+
+    const start = performance.now();
+    const shellResult = runMonteCarloGames(battle, 'p1a', shellSmash, null, { numGames: 1000 });
+    const protectResult = runMonteCarloGames(battle, 'p1a', protectAction, null, { numGames: 1000 });
+    const elapsed = performance.now() - start;
+
+    // Shell Smash baisse Def/SpD et n'attaque pas ce tour : ça doit rester
+    // plus risqué qu'un Protect qui ne prend aucun risque ce tour-là,
+    // maintenant que l'adversaire riposte intelligemment sur ce tour précis.
+    expect(shellResult.winRate).toBeLessThan(protectResult.winRate);
+    // Le classement de riposte est calculé UNE FOIS, pas par partie : 2000
+    // parties au total doivent rester rapides (quelques secondes, pas minutes).
+    expect(elapsed).toBeLessThan(15000);
+  });
 });
