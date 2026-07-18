@@ -1337,8 +1337,8 @@ function MoveDamageRow({
   );
 }
 
-/** Nombre de parties jouées par candidat lors de l'analyse (bouton "Analyser") — quelques secondes par coup à ce volume. */
-const MONTE_CARLO_GAMES = 3000;
+/** Nombre de parties jouées par candidat lors de l'analyse (bouton "Analyser") — un entre-deux entre rapidité et précision statistique ; peut prendre de plusieurs secondes à plusieurs dizaines de secondes par coup selon la complexité du plateau. */
+const MONTE_CARLO_GAMES = 15000;
 
 interface MonteCarloActionResult {
   action: PlayerAction;
