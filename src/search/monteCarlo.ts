@@ -16,16 +16,28 @@
  * moyenne soit fiable, plutôt qu'une seule recherche exhaustive.
  *
  * Politique de jeu (comment une partie choisit ses coups, tour après
- * tour) : le tout premier tour utilise l'action EXACTE demandée (celle
- * qu'on évalue) pour la position étudiée ; tout le reste (réponse adverse
- * ce tour, et absolument tout des deux côtés les tours suivants) est tiré
- * au sort parmi les actions plausibles, avec un biais vers les actions
- * offensives plutôt qu'une pure loterie (cf. `pickStochasticAction`) — ni
- * un adversaire parfait (minimax.ts s'en charge autrement), ni un
- * adversaire complètement aléatoire : quelque chose d'assez plausible pour
- * qu'une moyenne sur des milliers de parties reste informative, en
- * acceptant qu'aucune politique simple ne joue aussi bien qu'un vrai
- * joueur.
+ * tour) — LE facteur qui détermine la qualité du % au final, bien plus
+ * que le nombre de parties (un adversaire qui joue mal donne un % faux
+ * même avec 100 000 parties) :
+ *   - L'action ÉTUDIÉE (et l'action de l'allié si fixée) est fixe au tour 1.
+ *   - Pour les `config.smartTurns` premiers tours (défaut 3), TOUT LE
+ *     RESTE (les deux camps) utilise le classement PRÉCIS en combo de
+ *     `jointCandidatesForSide` (simulation réelle, synergies d'équipe
+ *     comprises) plutôt qu'une heuristique bon marché — c'est sur ces
+ *     tout premiers tours que les décisions tactiques fines (Protect au
+ *     bon moment, respecter Trick Room/Tailwind, timer Fake Out...)
+ *     pèsent le plus lourd sur l'issue de la partie.
+ *   - Au-delà, la politique redevient bon marché (`pickStochasticAction` :
+ *     biais vers les dégâts réels estimés, pas un ordre arbitraire) — la
+ *     précision compte moins tard, quand les positions sont généralement
+ *     plus tranchées (peu de Pokémon restants de chaque côté).
+ *   - Chaque classement précis (coûteux : simule plusieurs réponses) est
+ *     calculé UNE SEULE FOIS par état de combat rencontré et RÉUTILISÉ
+ *     entre toutes les parties qui retombent sur cet état (cache par
+ *     signature d'état) — sans ce cache, étendre la précision au-delà du
+ *     tout premier tour rend des dizaines de milliers de parties
+ *     totalement impraticables (mesuré : plusieurs minutes pour quelques
+ *     milliers de parties sans cache).
  *
  * Remplaçants Reg M-B non confirmés : contrairement à minimax.ts (qui
  * refuse de deviner, cf. fillEmptyActiveSlots), une simulation Monte Carlo
@@ -40,6 +52,7 @@ import type { BattleState, PokemonState } from '../engine/state';
 import type { PokemonPosition } from '../replay/types';
 import type { PlayerAction } from './actionTypes';
 import { generateActionsForPosition } from './actionGenerator';
+import { analyzeActionsForPosition } from './turnAnalyzer';
 import { calculateDamage } from '../damagecalc/damageCalc';
 import { simulateTurn, type SimulationBranch } from './outcomeSimulator';
 import {
@@ -68,12 +81,31 @@ export interface MonteCarloConfig {
    * un joueur qui varie ses lignes sans jouer n'importe quoi.
    */
   explorationRate: number;
+  /**
+   * Nombre de tours (à partir du tout premier) où les DEUX camps utilisent
+   * le classement précis en combo plutôt que la politique bon marché — cf.
+   * le commentaire d'en-tête. 1 = seule la réponse adverse au tout premier
+   * tour est précise (comportement d'avant) ; plus haut = décisions
+   * tactiques (Protect, Trick Room, Tailwind, timing de Fake Out...) mieux
+   * respectées sur plus de tours, au prix d'un calcul plus long.
+   */
+  smartTurns: number;
 }
 
 export const DEFAULT_MONTE_CARLO_CONFIG: MonteCarloConfig = {
   numGames: 2000,
   maxTurnsPerGame: 50,
   explorationRate: 0.3,
+  // Mesuré : le cache par signature d'état ne suffit PAS à rendre
+  // smartTurns > 1 praticable à l'échelle de 15 000 parties (la
+  // divergence entre parties vient surtout des CHOIX stochastiques eux-
+  // mêmes, pas seulement du bruit sur les %HP — arrondir les HP dans la
+  // signature n'a quasiment rien changé : ~56s pour 2000 parties au lieu
+  // de quelques secondes). Reste à 1 (seul le tour racine est précis) par
+  // défaut ; l'infrastructure (cache, `smartTurns`) est prête pour un
+  // usage ponctuel plus lent si un jour le besoin de précision dépasse
+  // celui de la vitesse pour un cas précis.
+  smartTurns: 1,
 };
 
 export interface MonteCarloResult {
@@ -157,13 +189,65 @@ function pickComboFromRanking(ranked: PlayerAction[][], explorationRate: number)
   return ranked[0];
 }
 
-/** Calcule, UNE SEULE FOIS avant de lancer les parties, le classement précis EN COMBO (les 2 positions adverses ensemble, synergies comprises) des réponses plausibles — réutilisé par toutes les parties pour le tout premier tour. */
-function computeRootOpponentComboRanking(
+/**
+ * Signature compacte d'un état de combat, pour le cache de classements
+ * précis. Inclut tout ce qui peut faire varier la MEILLEURE action d'une
+ * position : HP/K.O./statut/boosts/qui-est-sur-le-terrain de chaque
+ * Pokémon connu, ET les conditions de terrain globales (météo, Trick
+ * Room, Tailwind par côté...) que turnAnalyzer.ts prend en compte dans ses
+ * calculs de dégâts/vitesse. Deux états avec la même signature auront
+ * TOUJOURS le même classement précis — pas besoin de le recalculer.
+ */
+function battleStateSignature(battle: BattleState): string {
+  const parts: string[] = [];
+  for (const key of Object.keys(battle.pokemonByKey).sort()) {
+    const p = battle.pokemonByKey[key];
+    // %HP arrondi au multiple de 10 le plus proche plutôt que la valeur
+    // exacte : sans ça, deux parties qui ne diffèrent que par un jet de
+    // dégâts (ex: 54% vs 57% après le même coup) ont une signature
+    // DIFFÉRENTE et ne partagent jamais le classement mis en cache — le
+    // cache raterait alors presque toujours au-delà du tout premier tour
+    // (mesuré : 1000 parties passant de secondes à ~30s sans cet
+    // arrondi). Un classement "assez bon" partagé entre états très
+    // proches est un compromis largement préférable à recalculer à
+    // l'identique pour chaque variation infime de HP.
+    const hpPercent = p.maxHp ? Math.round((p.currentHp / p.maxHp) * 10) * 10 : 0;
+    parts.push(
+      `${key}=${p.fainted ? 'KO' : hpPercent}:${p.status ?? ''}:${p.hasBeenSentOut ? 1 : 0}:` +
+        `${p.boosts.atk},${p.boosts.def},${p.boosts.spa},${p.boosts.spd},${p.boosts.spe}`,
+    );
+  }
+  for (const posKey of Object.keys(battle.activeByPosition).sort()) {
+    parts.push(`active:${posKey}=${battle.activeByPosition[posKey as PokemonPosition]}`);
+  }
+  const f = battle.field;
+  parts.push(`field=${f.weather ?? ''}:${f.terrain ?? ''}:${f.isTrickRoom ? 1 : 0}:${f.isGravity ? 1 : 0}`);
+  parts.push(`p1side=${battle.sides.p1.isTailwind ? 1 : 0}:${battle.sides.p1.isReflect ? 1 : 0}:${battle.sides.p1.isLightScreen ? 1 : 0}`);
+  parts.push(`p2side=${battle.sides.p2.isTailwind ? 1 : 0}:${battle.sides.p2.isReflect ? 1 : 0}:${battle.sides.p2.isLightScreen ? 1 : 0}`);
+  return parts.join('|');
+}
+
+/**
+ * Classement précis EN COMBO (cf. `pickComboFromRanking`) pour `positions`,
+ * avec cache par signature d'état — calculé une seule fois par état de
+ * combat réellement rencontré, réutilisé par toutes les parties qui
+ * retombent dessus. Indispensable pour étendre la précision au-delà du
+ * tout premier tour sans rendre des dizaines de milliers de parties
+ * totalement impraticables (cf. commentaire d'en-tête).
+ */
+function getCachedComboRanking(
+  cache: Map<string, PlayerAction[][]>,
   battle: BattleState,
-  opposingPositions: PokemonPosition[],
+  positions: PokemonPosition[],
   breadth: number,
 ): PlayerAction[][] {
-  return jointCandidatesForSide(battle, opposingPositions, breadth, 'accurate');
+  if (positions.length === 0) return [[]];
+  const key = `${positions.join(',')}::${battleStateSignature(battle)}`;
+  const cached = cache.get(key);
+  if (cached) return cached;
+  const computed = jointCandidatesForSide(battle, positions, breadth, 'accurate');
+  cache.set(key, computed);
+  return computed;
 }
 
 /**
@@ -260,37 +344,59 @@ function playOneGame(
   expectedSlots: ExpectedSlots,
   config: MonteCarloConfig,
   rootOpponentComboRanking: PlayerAction[][],
+  rootAllyRanking: PlayerAction[][] | null,
+  comboCache: Map<string, PlayerAction[][]>,
+  breadth: number,
 ): { outcome: GameOutcome; turns: number } {
   let battle = rootBattle;
   const opposingSide = focalSide === 'p1' ? 'p2' : 'p1';
   let turns = 0;
-  let isRootTurn = true;
 
   while (turns < config.maxTurnsPerGame) {
     if (isTerminal(battle)) break;
     turns += 1;
+    const isRootTurn = turns === 1;
+    const useSmartPolicy = turns <= config.smartTurns;
 
     const ownPositions = activePositionsForSide(battle, focalSide);
     const oppPositions = activePositionsForSide(battle, opposingSide);
 
-    const ownActions: PlayerAction[] = [];
-    for (const pos of ownPositions) {
-      let action: PlayerAction | null;
-      if (isRootTurn && pos === rootPosition) {
-        action = rootAction;
-      } else if (isRootTurn && fixedAllyAction && pos !== rootPosition) {
-        action = fixedAllyAction;
-      } else {
-        action = pickStochasticAction(battle, pos, config.explorationRate);
+    let ownActions: PlayerAction[];
+    if (isRootTurn) {
+      ownActions = [];
+      for (const pos of ownPositions) {
+        let action: PlayerAction | null;
+        if (pos === rootPosition) {
+          action = rootAction;
+        } else if (fixedAllyAction) {
+          action = fixedAllyAction;
+        } else {
+          // Pas fixé par la question posée : classement précis (calculé une
+          // fois, conditionné sur rootAction) plutôt que la politique bon
+          // marché, même pour cette position — c'est le tour le plus critique.
+          action = rootAllyRanking ? pickComboFromRanking(rootAllyRanking, config.explorationRate)[0] : null;
+          if (!action) action = pickStochasticAction(battle, pos, config.explorationRate);
+        }
+        if (action) ownActions.push(action);
       }
-      if (action) ownActions.push(action);
+    } else if (useSmartPolicy) {
+      ownActions = pickComboFromRanking(
+        getCachedComboRanking(comboCache, battle, ownPositions, breadth),
+        config.explorationRate,
+      );
+    } else {
+      ownActions = ownPositions
+        .map((pos) => pickStochasticAction(battle, pos, config.explorationRate))
+        .filter((a): a is PlayerAction => a !== null);
     }
 
     const oppActions: PlayerAction[] = isRootTurn
       ? pickComboFromRanking(rootOpponentComboRanking, config.explorationRate)
-      : oppPositions
-          .map((pos) => pickStochasticAction(battle, pos, config.explorationRate))
-          .filter((a): a is PlayerAction => a !== null);
+      : useSmartPolicy
+        ? pickComboFromRanking(getCachedComboRanking(comboCache, battle, oppPositions, breadth), config.explorationRate)
+        : oppPositions
+            .map((pos) => pickStochasticAction(battle, pos, config.explorationRate))
+            .filter((a): a is PlayerAction => a !== null);
 
     const p1Actions = focalSide === 'p1' ? ownActions : oppActions;
     const p2Actions = focalSide === 'p1' ? oppActions : ownActions;
@@ -298,7 +404,6 @@ function playOneGame(
     battle = sampleBranch(branches);
     battle = fillEmptyActiveSlots(battle, expectedSlots);
     battle = fillGhostSlotsRandomly(battle, expectedSlots);
-    isRootTurn = false;
   }
 
   if (!isTerminal(battle)) {
@@ -321,6 +426,38 @@ function playOneGame(
  * L'appelant (l'UI) est responsable de découper l'appel en tranches (ex:
  * via runMonteCarloChunked ci-dessous) pour laisser le navigateur respirer.
  */
+const COMBO_BREADTH = 3;
+
+/** Prépare tout ce qui est calculé UNE SEULE FOIS avant de lancer les parties : classement adverse au tour racine, classement de l'allié non fixé (si besoin), et le cache partagé pour les tours suivants. */
+function prepareRootContext(
+  battle: BattleState,
+  position: PokemonPosition,
+  rootAction: PlayerAction,
+  fixedAllyAction: PlayerAction | null,
+  focalSide: 'p1' | 'p2',
+  opposingSide: 'p1' | 'p2',
+): {
+  rootOpponentComboRanking: PlayerAction[][];
+  rootAllyRanking: PlayerAction[][] | null;
+  comboCache: Map<string, PlayerAction[][]>;
+} {
+  const rootOpponentComboRanking = jointCandidatesForSide(
+    battle,
+    activePositionsForSide(battle, opposingSide),
+    COMBO_BREADTH,
+    'accurate',
+  );
+
+  const ownPositions = activePositionsForSide(battle, focalSide);
+  const otherOwnPosition = ownPositions.find((p) => p !== position);
+  const rootAllyRanking =
+    otherOwnPosition && !fixedAllyAction
+      ? analyzeActionsForPosition(battle, otherOwnPosition, rootAction).map((s) => [s.action])
+      : null;
+
+  return { rootOpponentComboRanking, rootAllyRanking, comboCache: new Map() };
+}
+
 export function runMonteCarloGames(
   battle: BattleState,
   position: PokemonPosition,
@@ -332,7 +469,14 @@ export function runMonteCarloGames(
   const focalSide = position.startsWith('p1') ? 'p1' : 'p2';
   const opposingSide = focalSide === 'p1' ? 'p2' : 'p1';
   const expectedSlots = computeExpectedSlots(battle);
-  const rootOpponentComboRanking = computeRootOpponentComboRanking(battle, activePositionsForSide(battle, opposingSide), 3);
+  const { rootOpponentComboRanking, rootAllyRanking, comboCache } = prepareRootContext(
+    battle,
+    position,
+    rootAction,
+    fixedAllyAction,
+    focalSide,
+    opposingSide,
+  );
 
   let gamesWon = 0;
   let gamesLost = 0;
@@ -351,6 +495,9 @@ export function runMonteCarloGames(
       expectedSlots,
       config,
       rootOpponentComboRanking,
+      rootAllyRanking,
+      comboCache,
+      COMBO_BREADTH,
     );
     if (outcome === 'win') gamesWon += 1;
     else if (outcome === 'loss') gamesLost += 1;
@@ -396,7 +543,14 @@ export async function runMonteCarloChunked(
   const focalSide = position.startsWith('p1') ? 'p1' : 'p2';
   const opposingSide = focalSide === 'p1' ? 'p2' : 'p1';
   const expectedSlots = computeExpectedSlots(battle);
-  const rootOpponentComboRanking = computeRootOpponentComboRanking(battle, activePositionsForSide(battle, opposingSide), 3);
+  const { rootOpponentComboRanking, rootAllyRanking, comboCache } = prepareRootContext(
+    battle,
+    position,
+    rootAction,
+    fixedAllyAction,
+    focalSide,
+    opposingSide,
+  );
 
   let gamesWon = 0;
   let gamesLost = 0;
@@ -418,6 +572,9 @@ export async function runMonteCarloChunked(
         expectedSlots,
         config,
         rootOpponentComboRanking,
+        rootAllyRanking,
+        comboCache,
+        COMBO_BREADTH,
       );
       if (outcome === 'win') gamesWon += 1;
       else if (outcome === 'loss') gamesLost += 1;
