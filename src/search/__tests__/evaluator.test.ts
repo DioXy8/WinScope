@@ -240,4 +240,31 @@ describe('estimateWinProbability', () => {
 
     expect(withOffensiveBoost).toBeGreaterThan(withDefensiveBoost);
   });
+
+  it('gives a meaningful bonus for active Tailwind, which leaves no HP/status trace to detect otherwise', () => {
+    const battle = createInitialBattleState();
+    const p1 = {
+      ...createInitialPokemonState({ species: 'Blastoise', side: 'p1', level: 50 }),
+      maxHp: 190,
+      currentHp: 190,
+    };
+    const p2 = {
+      ...createInitialPokemonState({ species: 'Incineroar', side: 'p2', level: 50 }),
+      maxHp: 190,
+      currentHp: 190,
+    };
+    const withoutTailwind = estimateWinProbability({
+      ...battle,
+      pokemonByKey: { 'p1:Blastoise': p1, 'p2:Incineroar': p2 },
+    });
+    const withTailwind = estimateWinProbability({
+      ...battle,
+      pokemonByKey: { 'p1:Blastoise': { ...p1 }, 'p2:Incineroar': { ...p2 } },
+      sides: {
+        ...battle.sides,
+        p1: { ...battle.sides.p1, isTailwind: true, tailwindTurnsLeft: 3 },
+      },
+    });
+    expect(withTailwind).toBeGreaterThan(withoutTailwind);
+  });
 });
