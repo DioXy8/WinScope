@@ -39,6 +39,50 @@ function setupLethalScenario(): BattleState {
   return battle;
 }
 
+describe('scoreAction opponent-response weighting', () => {
+  it('does not let harmless opponent status moves dilute a genuinely lethal threat in the average', () => {
+    // Avant le correctif, les réponses adverses échantillonnées étaient
+    // moyennées à POIDS ÉGAL : un Flare Blitz qui achève Garchomp et
+    // plusieurs moves de statut inoffensifs pesaient pareil, diluant
+    // fortement le vrai risque. Protect doit rester nettement meilleur
+    // qu'une attaque qui laisse Garchomp exposé à ce Flare Blitz.
+    let battle = createInitialBattleState();
+    const garchomp = {
+      ...createInitialPokemonState({ species: 'Garchomp', side: 'p1', level: 50 }),
+      position: 'p1a' as const,
+      revealedMoves: ['Dragon Claw', 'Protect'],
+      maxHp: 190,
+      currentHp: 60, // assez bas pour que Flare Blitz soit clairement fatal
+      hpIsPercentage: false,
+    };
+    const incineroar = {
+      ...createInitialPokemonState({ species: 'Incineroar', side: 'p2', level: 50 }),
+      position: 'p2a' as const,
+      revealedMoves: ['Flare Blitz', 'Will-O-Wisp', 'Taunt', 'Parting Shot'],
+      maxHp: 190,
+      currentHp: 190,
+      hpIsPercentage: false,
+    };
+    battle = {
+      ...battle,
+      pokemonByKey: { 'p1:Garchomp': garchomp, 'p2:Incineroar': incineroar },
+      activeByPosition: { p1a: 'p1:Garchomp', p2a: 'p2:Incineroar' },
+    };
+
+    const scores = analyzeActionsForPosition(battle, 'p1a', null);
+    const dragonClawScore = scores.find((s) => s.action.kind === 'move' && s.action.moveName === 'Dragon Claw');
+    const protectScore = scores.find((s) => s.action.kind === 'move' && s.action.moveName === 'Protect');
+
+    expect(dragonClawScore).toBeDefined();
+    expect(protectScore).toBeDefined();
+    expect(protectScore!.winExpectancy).toBeGreaterThan(dragonClawScore!.winExpectancy);
+    // La marge doit être substantielle — pas juste un léger avantage —
+    // puisque le danger réel (Flare Blitz fatal) doit maintenant dominer
+    // la moyenne plutôt que d'être noyé par 3 moves de statut inoffensifs.
+    expect(protectScore!.winExpectancy - dragonClawScore!.winExpectancy).toBeGreaterThan(10);
+  });
+});
+
 describe('analyzeActionsForPosition', () => {
   it('ranks a lethal move (Earthquake) above Protect when a KO is available', () => {
     const battle = setupLethalScenario();
