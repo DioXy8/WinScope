@@ -204,6 +204,28 @@ function sideScore(summary: SideSummary, isOutnumberedAlone: boolean): number {
  * dès que la profondeur de recherche configurée (nodeBudget/maxDepth) est
  * épuisée avant la fin du combat.
  */
+/**
+ * Bonus pour Tailwind actif : contrairement à Follow Me, Fake Out,
+ * Helping Hand... (dont l'effet se voit déjà dans le résultat simulé du
+ * tour — dégâts redirigés, cible qui n'a pas pu agir, dégâts boostés du
+ * partenaire), Tailwind ne change l'ordre de jeu qu'À PARTIR DU TOUR
+ * SUIVANT : un instantané juste après l'avoir posé ne montre RIEN de son
+ * effet (aucune différence de %HP/statut/boost ce tour-là). D'où ce bonus
+ * explicite plutôt que de compter sur le résultat simulé pour le révéler.
+ * Contrairement à Trick Room (qui profite au camp le plus LENT — il
+ * faudrait comparer les vitesses de base des deux équipes pour savoir qui
+ * en profite, pas fait ici), Tailwind est sans ambiguïté : il profite
+ * TOUJOURS au camp qui l'a posé.
+ */
+const TAILWIND_BONUS_PER_TURN = 0.4;
+const TAILWIND_BONUS_CAP = 1.6;
+
+function tailwindBonus(battle: BattleState, side: 'p1' | 'p2'): number {
+  const s = battle.sides[side];
+  if (!s.isTailwind || s.tailwindTurnsLeft <= 0) return 0;
+  return Math.min(TAILWIND_BONUS_CAP, s.tailwindTurnsLeft * TAILWIND_BONUS_PER_TURN);
+}
+
 export function estimateWinProbability(battle: BattleState): number {
   const p1Summary = summarizeSide(battle, 'p1');
   const p2Summary = summarizeSide(battle, 'p2');
@@ -215,8 +237,8 @@ export function estimateWinProbability(battle: BattleState): number {
   const p1Outnumbered = p1Summary.aliveCount === 1 && p2Summary.aliveCount > 1;
   const p2Outnumbered = p2Summary.aliveCount === 1 && p1Summary.aliveCount > 1;
 
-  const p1 = sideScore(p1Summary, p1Outnumbered);
-  const p2 = sideScore(p2Summary, p2Outnumbered);
+  const p1 = sideScore(p1Summary, p1Outnumbered) + tailwindBonus(battle, 'p1');
+  const p2 = sideScore(p2Summary, p2Outnumbered) + tailwindBonus(battle, 'p2');
   const total = p1 + p2;
   if (total === 0) return 50;
 
