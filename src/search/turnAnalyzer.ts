@@ -29,6 +29,7 @@ import type { PokemonPosition } from '../replay/types';
 import { generateActionsForPosition } from './actionGenerator';
 import { simulateTurn } from './outcomeSimulator';
 import { estimateWinProbability } from './evaluator';
+import { calculateDamage } from '../damagecalc/damageCalc';
 import type { PlayerAction } from './actionTypes';
 
 export interface ActionScore {
@@ -55,6 +56,52 @@ function cartesianProduct<T>(arrays: T[][]): T[][] {
   );
 }
 
+/**
+ * Poids grossier — PAS une vraie recherche récursive (ça exploserait le
+ * coût, cf. en-tête du fichier) — reflétant à quel point une action
+ * adverse ÉCHANTILLONNÉE est plausible/dangereuse. Sert à ne plus moyenner
+ * à POIDS ÉGAL un coup adverse qui ne fait rien et le meilleur coup
+ * adverse disponible : avant ce correctif, `scoreAction` traitait les 6
+ * réponses échantillonnées comme équiprobables quelle que soit leur
+ * qualité, ce qui diluait systématiquement l'impact d'une vraie menace
+ * (ex: un move qui one-shot) derrière plusieurs options adverses faibles
+ * ou hors-sujet. Basé sur une estimation de dégâts DIRECTE (un seul appel
+ * calculateDamage, pas une simulation de tour) : pas de récursion, pas
+ * d'explosion combinatoire, juste un signal de vraisemblance bon marché.
+ *
+ * Reste volontairement neutre (poids 1) pour les moves de statut/switch :
+ * on ne peut pas évaluer bon marché "Follow Me maintenant est malin"
+ * sans simuler — plutôt ne pas pénaliser que mal évaluer.
+ */
+function quickThreatWeight(battle: BattleState, action: PlayerAction): number {
+  if (action.kind !== 'move' || action.targetPositions.length === 0) return 1;
+  const attacker = battle.pokemonByKey[action.userKey];
+  if (!attacker) return 1;
+  let total = 0;
+  let count = 0;
+  for (const targetPos of action.targetPositions) {
+    const defenderKey = battle.activeByPosition[targetPos];
+    const defender = defenderKey ? battle.pokemonByKey[defenderKey] : undefined;
+    if (!defender) continue;
+    try {
+      const result = calculateDamage(attacker, defender, action.moveName, battle, attacker.side);
+      total += (result.minPercent + result.maxPercent) / 2;
+      count += 1;
+    } catch {
+      // Move/espèce hors dex Champions : pas d'estimation possible, neutre.
+    }
+  }
+  if (count === 0) return 1;
+  const avgPercent = total / count;
+  // 1 (aucun dégât réel, ex: immunité de type) à 4 (dégâts écrasants,
+  // ~100%+) : un coup qui ne fait RIEN garde un poids minimal — pas zéro,
+  // il reste "jouable" (contrôle de terrain, dégâts cumulés sur plusieurs
+  // tours qu'on ne voit pas ici...) — mais un coup dévastateur pèse
+  // nettement plus dans la moyenne, comme le ferait réellement un
+  // adversaire qui cherche à punir.
+  return 1 + Math.min(3, avgPercent / 33);
+}
+
 function scoreAction(
   battle: BattleState,
   candidateAction: PlayerAction,
@@ -74,12 +121,18 @@ function scoreAction(
     const p1Actions = candidateSide === 'p1' ? ownActions : opponentActions;
     const p2Actions = candidateSide === 'p1' ? opponentActions : ownActions;
 
+    // Vraisemblance grossière de CETTE combinaison de réponses adverses —
+    // le produit des poids individuels (une combo n'est plausible que si
+    // CHACUNE de ses actions l'est).
+    const comboWeight = opponentActions.reduce((acc, a) => acc * quickThreatWeight(battle, a), 1);
+
     const branches = simulateTurn(battle, p1Actions, p2Actions);
     for (const branch of branches) {
       const winP1 = estimateWinProbability(branch.battle);
       const winForCandidateSide = candidateSide === 'p1' ? winP1 : 100 - winP1;
-      totalWeightedWinSum += winForCandidateSide * branch.probability;
-      totalWeight += branch.probability;
+      const weight = branch.probability * comboWeight;
+      totalWeightedWinSum += winForCandidateSide * weight;
+      totalWeight += weight;
     }
   }
 
